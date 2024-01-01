@@ -39,7 +39,8 @@ class RAFM:
         ), "Invalid elastic_config, expect input a dictionary or file path"
 
         self.elastic_config = elastic_config
-
+        self.local_grads = []
+        self.alphas = []
     def random_resource_aware_model(self):
         """_summary_
 
@@ -70,10 +71,17 @@ class RAFM:
             raise NotImplementedError
         return subnetwork, total_params, arc_config
 
-    def sample_smallest_model(self):
+    def smallest_model(self):
+        """Return the smallest model in the elastic space
+
+        Returns:
+            - subnetwork (nn.Module): The smallest model in the elastic space
+            - params (int): The number of parameters in million of the smallest model
+            - arc_config (dict): The configuration of the smallest model
+        """
         arc_config = arc_config_sampler(**self.elastic_config, smallest=True)
-        subnetwork, total_params = self.resource_aware_model(arc_config)
-        return subnetwork, total_params, arc_config
+        subnetwork, params = self.resource_aware_model(arc_config)
+        return subnetwork, params, arc_config
 
     def resource_aware_model(self, arc_config):
         if "bert" == self.model.config.model_type.lower():
@@ -87,7 +95,29 @@ class RAFM:
 
     def salient_parameter_prioritization(self, metric=l1_norm):
         self.model = salient_parameter_prioritization(self.model, metric)
-
+    
+    def grad_accumulate(self, local_grad):
+        self.local_grads.append(local_grad)
+        
+    
+    def apply_grad(self):
+        
+        self.model.to("cpu")
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                param *= 0
+                for local_grad in self.local_grads:
+                    local_param = local_grad.state_dict()[name].cpu()
+                    if len(local_param.shape) == 2:
+                        param[
+                            : local_param.shape[0], : local_param.shape[1]
+                        ] += local_param / len(self.local_grads)
+                    else:
+                        param[: local_param.shape[0]] += local_param / len(
+                            self.local_grads
+                        )
+        self.local_grads.clear()
+    
     def grad_aggregate(self, local_grads:list[nn.Module]):
         """Aggregate downscaled model gradients via weihted average
 
