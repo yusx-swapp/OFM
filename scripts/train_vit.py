@@ -122,7 +122,7 @@ def main(args):
     model = rafm_train(
         args, model, mini_shards, prepared_ds["validation"], processor=processor, collate_fn=collate_fn, compute_metrics=compute_metrics
     )
-    model.save_ckpt(os.path.join(args.save_dir, args.dataset, "final"))
+    model.save_ckpt(os.path.join(args.save_dir, "final"))
 
 
 if __name__ == "__main__":
