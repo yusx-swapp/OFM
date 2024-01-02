@@ -90,7 +90,7 @@ def main(args):
     splitter = DatasetSplitter(dataset["train"], seed=123)
 
     mini_shards = splitter.split(
-        args.num_clients, k_shot=args.k_shot, replacement=False
+        args.num_shards, k_shot=args.k_shot, replacement=False
     )
 
     for i, mini_shard in enumerate(mini_shards):
@@ -128,3 +128,5 @@ def main(args):
 if __name__ == "__main__":
     args = arguments()
     main(args)
+
+#python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json

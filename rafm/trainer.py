@@ -23,7 +23,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         evaluation_strategy="no",
         save_strategy="no",
         num_train_epochs=args.num_local_epochs,
-        learning_rate=lr,
+        learning_rate=args.lr,
         remove_unused_columns=False,
         push_to_hub=False,
         report_to="none",
@@ -37,7 +37,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             evaluation_strategy="no",
             save_strategy="no",
             num_train_epochs=args.num_local_epochs,
-            learning_rate=lr,
+            learning_rate=args.lr,
             remove_unused_columns=False,
             push_to_hub=False,
             report_to="none",
@@ -45,10 +45,10 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             # load_best_model_at_end=True,
     )
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
-        local_models = []
+
 
         lr = step_lr(args.lr, epoch, args.step_size, 0.98)
-
+        training_args.learning_rate = lr
         np.random.seed(int(time.time()))  # Set the seed to the current time
 
         if args.spp:
@@ -58,8 +58,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         #shuffle the data shards
         np.random.shuffle(data_shards)
         #Train each downsized model independently in a sequential manner
-        # for idx, data_shard in enumerate(data_shards):
-        for idx, data_shard in enumerate(tqdm(data_shards, desc=f"Shard{idx+1}")):
+        for idx, data_shard in enumerate(tqdm(data_shards, desc="Mini-shard training")):
             if idx == 0:
                 ds_model = copy.deepcopy(model.model)
                 ds_model_params = model.total_params
@@ -100,73 +99,77 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         writer.add_scalar(
             "global/params",
             avg_params,
-            round,
+            epoch,
         )
 
         # Apply the aggregated and normalized gradient to the full-size model
         model.apply_grad()
 
-        print(f"Training finished for epoch {epoch}")
+        if epoch % 25 == 0:
+            # Evaluate the model
+            
         
-        print("*" * 20 + "Evaluating in epoch {}".format(epoch) + "*" * 20)
-        # Evaluate the model at the end of each epoch
-        trainer = Trainer(
-            model=model.model,
-            args=eval_args,
-            data_collator=collate_fn,
-            compute_metrics=compute_metrics,
-            train_dataset=None,
-            eval_dataset=val_dataset,
-            tokenizer=processor,
-        )
         
-        metrics = trainer.evaluate(val_dataset)
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-        val_accuracy, val_f1_score = metrics["eval_accuracy"], metrics["eval_f1"]
+            print(f"Training finished for epoch {epoch}")
+            
+            print("*" * 20 + "Evaluating in epoch {}".format(epoch) + "*" * 20)
+            # Evaluate the model at the end of each epoch
+            trainer = Trainer(
+                model=model.model,
+                args=eval_args,
+                data_collator=collate_fn,
+                compute_metrics=compute_metrics,
+                train_dataset=None,
+                eval_dataset=val_dataset,
+                tokenizer=processor,
+            )
+        
+            metrics = trainer.evaluate(val_dataset)
+            trainer.log_metrics("eval", metrics)
+            trainer.save_metrics("eval", metrics)
+            val_accuracy, val_f1_score = metrics["eval_accuracy"], metrics["eval_f1"]
 
-        writer.add_scalar(
-            "global/eval_accuracy",
-            val_accuracy,
-            epoch,
-        )
-        writer.add_scalar(
-            "global/eval_f1",
-            val_f1_score,
-            epoch,
-        )
-        print("*" * 20 + "Evaluation finished" + "*" * 20)
+            writer.add_scalar(
+                "global/eval_accuracy",
+                val_accuracy,
+                epoch,
+            )
+            writer.add_scalar(
+                "global/eval_f1",
+                val_f1_score,
+                epoch,
+            )
 
     
         
-        model.model.to("cpu")
-        if val_accuracy > best_acc:
-            best_acc = val_accuracy
-            model.save_ckpt(
-                os.path.join(args.save_dir, args.dataset, "best_model")
+            model.model.to("cpu")
+            if val_accuracy > best_acc:
+                best_acc = val_accuracy
+                model.save_ckpt(os.path.join(args.save_dir, "best_model"))
+            if val_f1_score > best_f1:
+                best_f1 = val_f1_score
+            writer.add_scalar(
+                "global/best_accuracy",
+                best_acc,
+                epoch,
             )
-        if val_f1_score > best_f1:
-            best_f1 = val_f1_score
-        writer.add_scalar(
-            "global/best_accuracy",
-            best_acc,
-            epoch,
-        )
-        writer.add_scalar(
-            "global/best_f1",
-            best_f1,
-            epoch,
-        )
+            writer.add_scalar(
+                "global/best_f1",
+                best_f1,
+                epoch,
+            )
 
-        print(f"Best Validation Accuracy: {best_acc:.4f}")
-        print(f"Best Validation F1 Score: {best_f1:.4f}")
+            print(f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1}")
+            print("*" * 20 + "Evaluation finished" + "*" * 20)
 
-        if test_dataset:
-            metrics = trainer.evaluate(test_dataset, metric_key_prefix="test")
-            trainer.log_metrics("test", metrics)
-            trainer.save_metrics("test", metrics)
+            if test_dataset:
+                metrics = trainer.evaluate(test_dataset, metric_key_prefix="test")
+                trainer.log_metrics("test", metrics)
+                trainer.save_metrics("test", metrics)
 
-        early_stopping(val_f1_score)
+            early_stopping(val_f1_score)
+            
+        model.save_ckpt(os.path.join(args.save_dir, "last_model"))
         if early_stopping.has_converged():
             print("Model has converged. Stopping training.")
             break

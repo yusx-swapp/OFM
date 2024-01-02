@@ -3,14 +3,7 @@ import argparse
 
 def arguments():
     parser = argparse.ArgumentParser(
-        description="Resource-aware Federated Foundation Models"
-    )
-    parser.add_argument(
-        "--method",
-        type=str,
-        default="raffm",
-        choices=["vanilla", "raffm"],
-        help="Method to use (centralized or federated)",
+        description="Resource Adaptive Foundation Model Fine-tuning"
     )
     parser.add_argument(
         "--model",
@@ -22,7 +15,7 @@ def arguments():
     parser.add_argument(
         "--save_dir",
         type=str,
-        default="log_vit",
+        default="ckpts/",
         help="dir save the model",
     )
 
@@ -40,23 +33,18 @@ def arguments():
         help="Dataset to use (currently only cifar100 is supported)",
     )
     parser.add_argument(
-        "--k-shot",
+        "--k_shot",
         type=int,
         default=None,
         help="split k-shot local data",
     )
     parser.add_argument(
-        "--num_clients",
+        "--num_shards",
         type=int,
         default=100,
-        help="Number of clients in a federated learning setting",
+        help="Number of mini shards data",
     )
-    parser.add_argument(
-        "--participation",
-        type=float,
-        default=0.1,
-        help="participation rate each round",
-    )
+
     parser.add_argument(
         "--lr", type=float, default=5e-5, help="Learning rate for the optimizer"
     )

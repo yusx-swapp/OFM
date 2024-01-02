@@ -96,7 +96,7 @@ class RAFM:
     def salient_parameter_prioritization(self, metric=l1_norm):
         self.model = salient_parameter_prioritization(self.model, metric)
     
-    def grad_accumulate(self, local_grad):
+    def grad_accumulate(self, local_grad, alpha = None):
         self.local_grads.append(local_grad)
         
     
@@ -108,15 +108,14 @@ class RAFM:
                 param *= 0
                 for local_grad in self.local_grads:
                     local_param = local_grad.state_dict()[name].cpu()
-                    if len(local_param.shape) == 2:
-                        param[
-                            : local_param.shape[0], : local_param.shape[1]
-                        ] += local_param / len(self.local_grads)
-                    else:
-                        param[: local_param.shape[0]] += local_param / len(
-                            self.local_grads
-                        )
+                    slices = tuple(
+                        slice(0, min(sm_dim, lg_dim))
+                        for sm_dim, lg_dim in zip(local_param.shape, param.shape)
+                    )
+                    param[slices] += local_param / len(self.local_grads)
+                    
         self.local_grads.clear()
+        
     
     def grad_aggregate(self, local_grads:list[nn.Module]):
         """Aggregate downscaled model gradients via weihted average
