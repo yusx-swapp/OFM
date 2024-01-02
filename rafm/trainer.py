@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
-    early_stopping = EarlyStopping(patience=10, verbose=True)
+    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
 
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
     best_acc = 0.0

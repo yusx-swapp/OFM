@@ -91,5 +91,14 @@ def arguments():
         default=None,
         help="Elastic space file path",
     )
+    
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=10,
+        help="Convergence patience for early stopping",
+    )
+    
+    
     args = parser.parse_args()
     return args
