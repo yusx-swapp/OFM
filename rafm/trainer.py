@@ -93,7 +93,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             local_grad = local_grad - ds_model.to("cpu").state_dict()
             
             model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
-            model.apply_grad(local_grad)
+            # model.apply_grad(local_grad)
     
 
     
@@ -106,7 +106,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         )
 
         # Apply the aggregated and normalized gradient to the full-size model
-        # model.apply_accumulate_grad()
+        model.apply_accumulate_grad()
 
         if epoch % 10 == 0:
             # Evaluate the model

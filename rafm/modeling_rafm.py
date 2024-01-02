@@ -116,7 +116,7 @@ class RAFM:
                 )
                 param[slices] -= local_grad
                     
-    def apply_accumulate_grad(self, lr = 1e-3):
+    def apply_accumulate_grad(self):
         
         self.grad_normalization()
         
@@ -124,12 +124,12 @@ class RAFM:
         with torch.no_grad():
             for name, param in self.model.named_parameters():
                 for local_grad in self.local_grads:
-                    local_param = local_grad.state_dict()[name].cpu()
+                    local_param_grad = local_grad.state_dict()[name].cpu()
                     slices = tuple(
                         slice(0, min(sm_dim, lg_dim))
-                        for sm_dim, lg_dim in zip(local_param.shape, param.shape)
+                        for sm_dim, lg_dim in zip(local_param_grad.shape, param.shape)
                     )
-                    param[slices] -= local_param 
+                    param[slices] -= local_param_grad 
                     
         self.local_grads.clear()
     
