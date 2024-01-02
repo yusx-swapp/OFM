@@ -69,13 +69,13 @@ def arguments():
     parser.add_argument(
         "--num_local_epochs",
         type=int,
-        default=5,
+        default=1,
         help="Number of local epochs for each client in a federated learning setting",
     )
     parser.add_argument(
-        "--num_rounds",
+        "--epochs",
         type=int,
-        default=100,
+        default=500,
         help="Number of communication rounds for federated learning",
     )
     parser.add_argument(

@@ -111,8 +111,7 @@ def main(args):
         ckpt_path = model_name
         elastic_config = args.elastic_config
 
-    model = ViTForImageClassification.from_pretrained(
-        ckpt_path,
+    model = ViTForImageClassification.from_pretrained(ckpt_path,
         num_labels=len(labels),
         id2label={str(i): c for i, c in enumerate(labels)},
         label2id={c: str(i) for i, c in enumerate(labels)},
