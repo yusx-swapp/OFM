@@ -17,4 +17,6 @@ cd /work/LAS/jannesar-lab/yusx/RAFM
 
 module load ml-gpu
 
+ml-gpu pip3 install . 
+
 ml-gpu python3 scripts/train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --batch_size 128 --elastic_config scripts/elastic_space.json
