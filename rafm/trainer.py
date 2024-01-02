@@ -46,6 +46,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
     )
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
 
+        epoch_train_loss = 0.0
 
         lr = step_lr(args.lr, epoch, args.step_size, 0.98)
         training_args.learning_rate = lr
@@ -90,6 +91,9 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             )
             train_results = trainer.train()
             
+            epoch_train_loss += train_results.metrics["train_loss"]
+            
+            
             local_grad = local_grad - ds_model.to("cpu").state_dict()
             
             model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
@@ -105,10 +109,16 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             epoch,
         )
 
+        writer.add_scalar(
+            "global/train_loss",
+            epoch_train_loss,
+            epoch,
+        )
+        
         # Apply the aggregated and normalized gradient to the full-size model
         model.apply_accumulate_grad()
 
-        if epoch % 10 == 0:
+        if epoch % 5 == 0:
             # Evaluate the model
             
         
