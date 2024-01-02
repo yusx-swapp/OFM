@@ -8,6 +8,7 @@
 #SBATCH --mem=128G  # max memory
 #SBATCH -J "train_vit_cifar100"  # job name
 #SBATCH --mail-user=yusx@iastate.edu  # email address
+#SBATCH --mail-type=BEGIN
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
 #SBATCH --output=job.%J.out 
@@ -19,4 +20,4 @@ module load ml-gpu
 
 ml-gpu pip3 install . 
 
-ml-gpu python3 scripts/train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --batch_size 128 --elastic_config scripts/elastic_space.json
+ml-gpu python3 scripts/train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --batch_size 128 --elastic_config scripts/elastic_space.json --spp
