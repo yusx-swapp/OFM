@@ -14,7 +14,7 @@ from .model_downsize import (
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
-
+from .trainer import rafm_train
 
 class RAFM:
     def __init__(self, model, elastic_config=None) -> None:
@@ -99,44 +99,45 @@ class RAFM:
     def grad_accumulate(self, local_grad, alpha = None):
         self.local_grads.append(local_grad)
         
-    
-    def apply_grad(self):
+    def apply_grad(self, grad):
+        """Apply the gradients to the full-size model
+
+        Args:
+            grad (dict): Trained downsized model gradients
+        """
+        self.model.to("cpu")
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+            
+                local_grad = grad[name].cpu()
+                slices = tuple(
+                    slice(0, min(sm_dim, lg_dim))
+                    for sm_dim, lg_dim in zip(local_grad.shape, param.shape)
+                )
+                param[slices] -= local_grad
+                    
+    def apply_accumulate_grad(self, lr = 1e-3):
+        
+        self.grad_normalization()
         
         self.model.to("cpu")
         with torch.no_grad():
             for name, param in self.model.named_parameters():
-                param *= 0
                 for local_grad in self.local_grads:
                     local_param = local_grad.state_dict()[name].cpu()
                     slices = tuple(
                         slice(0, min(sm_dim, lg_dim))
                         for sm_dim, lg_dim in zip(local_param.shape, param.shape)
                     )
-                    param[slices] += local_param / len(self.local_grads)
+                    param[slices] -= local_param 
                     
         self.local_grads.clear()
-        
     
-    def grad_aggregate(self, local_grads:list[nn.Module]):
-        """Aggregate downscaled model gradients via weihted average
+    def train(self, args, data_shards, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
+        model = rafm_train(args, self, data_shards, val_dataset, test_dataset, processor, collate_fn, compute_metrics)
+        return model
+    
 
-        Args:
-            local_grads (list[nn.Module]): Downscaled model gradients
-        """
-        self.model.to("cpu")
-        with torch.no_grad():
-            for name, param in self.model.named_parameters():
-                param *= 0
-                for local_grad in local_grads:
-                    local_param = local_grad.state_dict()[name].cpu()
-                    if len(local_param.shape) == 2:
-                        param[
-                            : local_param.shape[0], : local_param.shape[1]
-                        ] += local_param / len(local_grads)
-                    else:
-                        param[: local_param.shape[0]] += local_param / len(
-                            local_grads
-                        )
     def grad_normalization(self):
         """Normalize the gradients via previous epoch's gradients"""
         pass

@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
-    early_stopping = EarlyStopping(patience=500, verbose=True)
+    early_stopping = EarlyStopping(patience=10, verbose=True)
 
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
     best_acc = 0.0
@@ -76,7 +76,8 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 ) = model.random_resource_aware_model()
 
             avg_params += ds_model_params
-
+            
+            local_grad = copy.deepcopy(ds_model.to("cpu").state_dict())
 
             trainer = Trainer(
                 model=ds_model,
@@ -89,8 +90,10 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             )
             train_results = trainer.train()
             
-            model.grad_accumulate(ds_model.to("cpu"),alpha = data_shard.num_rows)
+            local_grad = local_grad - ds_model.to("cpu").state_dict()
             
+            model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
+            model.apply_grad(local_grad)
     
 
     
@@ -103,9 +106,9 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         )
 
         # Apply the aggregated and normalized gradient to the full-size model
-        model.apply_grad()
+        # model.apply_accumulate_grad()
 
-        if epoch % 25 == 0:
+        if epoch % 10 == 0:
             # Evaluate the model
             
         

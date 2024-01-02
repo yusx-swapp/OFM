@@ -64,8 +64,11 @@ def transform(example_batch, processor):
 def main(args):
     if args.model == "vit":
         model_name = "google/vit-base-patch16-224-in21k"
+        model_name = "edumunozsala/vit_base-224-in21k-ft-cifar100"
+        processor_name = "google/vit-base-patch16-224-in21k"
     elif args.model == "vit-large":
         model_name = "google/vit-large-patch16-224-in21k"
+        processor_name = "google/vit-large-patch16-224-in21k"
 
     # load data and preprocess
     if args.dataset == "imagenet-1k":
@@ -82,7 +85,7 @@ def main(args):
     dataset["validation"] = train_val["test"]
     labels = dataset["train"].features["label"].names
 
-    processor = ViTImageProcessor.from_pretrained(model_name)
+    processor = ViTImageProcessor.from_pretrained(processor_name)
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
