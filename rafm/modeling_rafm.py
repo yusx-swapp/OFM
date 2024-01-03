@@ -121,10 +121,11 @@ class RAFM:
         self.grad_normalization()
         
         self.model.to("cpu")
+        
         with torch.no_grad():
             for name, param in self.model.named_parameters():
                 for local_grad in self.local_grads:
-                    local_param_grad = local_grad.state_dict()[name].cpu()
+                    local_param_grad = local_grad[name].cpu()
                     slices = tuple(
                         slice(0, min(sm_dim, lg_dim))
                         for sm_dim, lg_dim in zip(local_param_grad.shape, param.shape)

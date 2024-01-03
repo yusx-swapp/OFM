@@ -93,9 +93,12 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             
             epoch_train_loss += train_results.metrics["train_loss"]
             
-            
-            local_grad = local_grad - ds_model.to("cpu").state_dict()
-            
+            ds_model.to("cpu")
+            import torch
+            with torch.no_grad():           
+                for key in ds_model.state_dict():
+                    local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
+                
             model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
             # model.apply_grad(local_grad)
     
