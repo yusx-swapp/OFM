@@ -100,7 +100,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                     local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
                 
             model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
-            # model.apply_grad(local_grad)
+            model.apply_grad(local_grad)
     
 
     
@@ -119,9 +119,9 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         )
         
         # Apply the aggregated and normalized gradient to the full-size model
-        model.apply_accumulate_grad()
+        model.apply_accumulate_grad(args.grad_beta)
 
-        if epoch % 5 == 0:
+        if epoch % args.log_interval == 0:
             # Evaluate the model
             
         
@@ -175,7 +175,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 epoch,
             )
 
-            print(f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1}")
+            print(f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1} \nEpoch train loss: {epoch_train_loss}")
             print("*" * 20 + "Evaluation finished" + "*" * 20)
 
             if test_dataset:

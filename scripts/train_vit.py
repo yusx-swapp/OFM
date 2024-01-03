@@ -63,26 +63,34 @@ def transform(example_batch, processor):
 
 def main(args):
     if args.model == "vit":
-        model_name = "google/vit-base-patch16-224-in21k"
-        model_name = "edumunozsala/vit_base-224-in21k-ft-cifar100"
-        processor_name = "google/vit-base-patch16-224-in21k"
+        model_name = "google/vit-base-patch16-224"
+        # model_name = "edumunozsala/vit_base-224-in21k-ft-cifar100"
+        processor_name = "google/vit-base-patch16-224"
     elif args.model == "vit-large":
-        model_name = "google/vit-large-patch16-224-in21k"
-        processor_name = "google/vit-large-patch16-224-in21k"
+        model_name = "google/vit-base-patch16-224"
+        processor_name = "google/vit-base-patch16-224"
 
     # load data and preprocess
-    if args.dataset == "imagenet-1k":
-        raise NotImplementedError
     
-    dataset = load_dataset(args.dataset)
-    if args.dataset == "cifar100":
-        dataset = dataset.rename_column("fine_label", "label")
+    
+    
+    dataset = load_dataset(args.dataset, cache_dir=args.cache_dir)
 
-    train_val = dataset["train"].train_test_split(
-        test_size=0.2, stratify_by_column="label"
-    )
-    dataset["train"] = train_val["train"]
-    dataset["validation"] = train_val["test"]
+    if args.dataset == "imagenet-1k":
+        dataset = dataset.rename_column("image", "img")
+
+    
+
+    if args.dataset in ["cifar100", "cifar10"]:
+        if args.dataset == "cifar100":
+            dataset = dataset.rename_column("fine_label", "label")
+            
+        train_val = dataset["train"].train_test_split(
+            test_size=0.2, stratify_by_column="label", seed=123
+        )
+        dataset["train"] = train_val["train"]
+        dataset["validation"] = train_val["test"]
+    
     labels = dataset["train"].features["label"].names
 
     processor = ViTImageProcessor.from_pretrained(processor_name)

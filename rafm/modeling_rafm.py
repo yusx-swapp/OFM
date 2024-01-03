@@ -98,6 +98,7 @@ class RAFM:
     
     def grad_accumulate(self, local_grad, alpha = None):
         self.local_grads.append(local_grad)
+        self.alphas.append(alpha)
         
     def apply_grad(self, grad):
         """Apply the gradients to the full-size model
@@ -116,7 +117,7 @@ class RAFM:
                 )
                 param[slices] -= local_grad
                     
-    def apply_accumulate_grad(self):
+    def apply_accumulate_grad(self, beta = 0.5):
         
         self.grad_normalization()
         
@@ -124,15 +125,16 @@ class RAFM:
         
         with torch.no_grad():
             for name, param in self.model.named_parameters():
-                for local_grad in self.local_grads:
+                for local_grad, alpha in zip(self.local_grads, self.alphas):
                     local_param_grad = local_grad[name].cpu()
                     slices = tuple(
                         slice(0, min(sm_dim, lg_dim))
                         for sm_dim, lg_dim in zip(local_param_grad.shape, param.shape)
                     )
-                    param[slices] -= local_param_grad 
+                    param[slices] -= (local_param_grad*alpha/sum(self.alphas))*beta
                     
         self.local_grads.clear()
+        self.alphas.clear()
     
     def train(self, args, data_shards, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
         model = rafm_train(args, self, data_shards, val_dataset, test_dataset, processor, collate_fn, compute_metrics)

@@ -29,8 +29,8 @@ def arguments():
         "--dataset",
         type=str,
         default="cifar100",
-        choices=["cifar100", "flowers102", "Caltech101", "cifar10", "Food101", "sst2"],
-        help="Dataset to use (currently only cifar100 is supported)",
+        choices=["cifar100", "imagenet-1k","flowers102", "Caltech101", "cifar10", "Food101", "sst2"],
+        help="Dataset to use",
     )
     parser.add_argument(
         "--k_shot",
@@ -99,6 +99,33 @@ def arguments():
         help="Convergence patience for early stopping",
     )
     
+    parser.add_argument(
+        "--log_interval",
+        type=int,
+        default=10,
+        help="Logging interval",
+    )
     
+    parser.add_argument(
+        "--grad_beta",
+        type=float,
+        default=0.5,
+        help="Gradient accumulation beta",
+    )
+    
+    parser.add_argument(
+        "--huggingface_token",
+        type=str,
+        default=None,
+        help="Huggingface token for private model",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        # default="~/.cache/huggingface/datasets",
+        default="/work/LAS/jannesar-lab/sixing/.cache",
+        help="Cache directory for datasets",
+    )     
+        
     args = parser.parse_args()
     return args
