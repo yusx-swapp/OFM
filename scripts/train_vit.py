@@ -54,7 +54,7 @@ def collate_fn(batch):
 
 def transform(example_batch, processor):
     # Take a list of PIL images and turn them to pixel values
-    inputs = processor([x for x in example_batch["img"]], return_tensors="pt")
+    inputs = processor([x.convert("RGB") for x in example_batch["img"]], return_tensors="pt")
 
     # Include the labels
     inputs["labels"] = example_batch["label"]
