@@ -9,6 +9,7 @@ from peft import (
     PeftConfig,
     inject_adapter_in_model,
 )
+from typing import List
 
 
 __all__ = [
@@ -91,9 +92,9 @@ def check_weight_copy_correctness(subnet, org_model):
 
 @staticmethod
 def arc_config_sampler(
-    atten_out_space: list[int],
-    inter_hidden_space: list[int],
-    residual_hidden_space: list[int],
+    atten_out_space: List[int],
+    inter_hidden_space: List[int],
+    residual_hidden_space: List[int],
     n_layer=12,
     smallest=False,
 ) -> dict:
