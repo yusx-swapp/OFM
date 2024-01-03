@@ -7,3 +7,4 @@ tensorboard
 evaluate
 datasets
 peft
+huggingface_hub
