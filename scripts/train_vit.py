@@ -72,14 +72,16 @@ def main(args):
 
     # load data and preprocess
     
+    if args.huggingface_token:
+        from huggingface_hub import login
+        login(args.huggingface_token)    
     
-    
-    dataset = load_dataset(args.dataset, cache_dir=args.cache_dir)
+    dataset = load_dataset(args.dataset, cache_dir=args.cache_dir, trust_remote_code=True)
 
     if args.dataset == "imagenet-1k":
+        assert args.huggingface_token is not None, "Please provide a HuggingFace token to download the ImageNet dataset"
         dataset = dataset.rename_column("image", "img")
 
-    
 
     if args.dataset in ["cifar100", "cifar10"]:
         if args.dataset == "cifar100":
