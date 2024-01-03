@@ -41,6 +41,8 @@ class RAFM:
         self.elastic_config = elastic_config
         self.local_grads = []
         self.alphas = []
+        self._pre_global_grad = None
+        
     def random_resource_aware_model(self):
         """_summary_
 
@@ -115,7 +117,10 @@ class RAFM:
                     slice(0, min(sm_dim, lg_dim))
                     for sm_dim, lg_dim in zip(local_grad.shape, param.shape)
                 )
-                param[slices] -= local_grad
+                if self._pre_global_grad:
+                    param[slice] -= (0.9 * local_grad + 0.1 * self._pre_global_grad[name][slice])
+                else:
+                    param[slices] -= local_grad
                     
     def apply_accumulate_grad(self, beta = 0.5):
         

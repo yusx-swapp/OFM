@@ -116,10 +116,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             "global/train_loss",
             epoch_train_loss,
             epoch,
-        )
-        
-        # Apply the aggregated and normalized gradient to the full-size model
-        model.apply_accumulate_grad(args.grad_beta)
+        )        
 
         if epoch % args.log_interval == 0:
             # Evaluate the model
@@ -186,6 +183,10 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             early_stopping(val_f1_score)
             
         model.save_ckpt(os.path.join(args.save_dir, "last_model"))
+        
+        # Apply the aggregated and normalized gradient to the full-size model
+        model.apply_accumulate_grad(args.grad_beta)
+        
         if early_stopping.has_converged():
             print("Model has converged. Stopping training.")
             break
