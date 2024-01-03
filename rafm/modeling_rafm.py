@@ -14,7 +14,7 @@ from .model_downsize import (
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
-from .trainer import rafm_train
+# from .trainer import rafm_train
 
 class RAFM:
     def __init__(self, model, elastic_config=None) -> None:
