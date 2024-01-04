@@ -166,3 +166,4 @@ ckpts*/
 *.out
 *.err
 slurm*.sh
+log/
