@@ -318,12 +318,12 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                     eval_dataset=val_dataset,
                     tokenizer=processor,
                 )
-                ds_model.to("cpu")
                 
-                metrics = trainer.evaluate(val_dataset)
+                metrics = trainer.evaluate(val_dataset)                
                 trainer.log_metrics("eval", metrics)
                 trainer.save_metrics("eval", metrics)
                 val_accuracy, val_f1_score = metrics["eval_accuracy"], metrics["eval_f1"]
+                ds_model.to("cpu")
 
                 writer.add_scalar(
                     "steps/eval_accuracy",
