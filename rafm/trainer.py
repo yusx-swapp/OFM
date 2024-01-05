@@ -368,7 +368,8 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                     trainer.log_metrics("test", metrics)
                     trainer.save_metrics("test", metrics)
 
-                early_stopping(val_f1_score)
+                if steps % args.num_shards == 0:
+                    early_stopping(val_f1_score)
 
                 # Apply the aggregated and normalized gradient to the full-size model
                 model.apply_accumulate_grad(args.grad_beta)
