@@ -29,7 +29,15 @@ def arguments():
         "--dataset",
         type=str,
         default="cifar100",
-        choices=["cifar100", "imagenet-1k","flowers102", "Caltech101", "cifar10", "Food101", "sst2"],
+        choices=[
+            "cifar100",
+            "imagenet-1k",
+            "flowers102",
+            "Caltech101",
+            "cifar10",
+            "Food101",
+            "sst2",
+        ],
         help="Dataset to use",
     )
     parser.add_argument(
@@ -91,28 +99,28 @@ def arguments():
         default=None,
         help="Elastic space file path",
     )
-    
+
     parser.add_argument(
         "--patience",
         type=int,
         default=10,
         help="Convergence patience for early stopping",
     )
-    
+
     parser.add_argument(
         "--log_interval",
         type=int,
         default=10,
         help="Logging interval",
     )
-    
+
     parser.add_argument(
         "--grad_beta",
         type=float,
         default=0.5,
         help="Gradient accumulation beta",
     )
-    
+
     parser.add_argument(
         "--huggingface_token",
         type=str,
@@ -125,7 +133,7 @@ def arguments():
         # default="~/.cache/huggingface/datasets",
         default="/work/LAS/jannesar-lab/sixing/.cache",
         help="Cache directory for datasets",
-    )     
-        
+    )
+
     args = parser.parse_args()
     return args

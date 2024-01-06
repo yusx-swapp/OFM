@@ -21,7 +21,6 @@ __all__ = [
 ]
 
 
-
 def copy_weights_to_subnet(subnet, org_model):
     """
     Copies the weights from original foundation model to scaled subnet where the parameter names match.

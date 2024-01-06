@@ -5,7 +5,6 @@ from datasets import Dataset
 import json
 
 
-
 def save_dict_to_file(dictionary, file_path):
     """
     Saves a dictionary object to a file using JSON format.
@@ -17,7 +16,6 @@ def save_dict_to_file(dictionary, file_path):
     # Write the dictionary to file, ensuring it is in JSON format
     with open(file_path, "w") as file:
         json.dump(dictionary, file)
-
 
 
 def load_dict_from_file(file_path):
@@ -34,10 +32,8 @@ def load_dict_from_file(file_path):
     return dictionary
 
 
-
 def step_lr(initial_lr, epoch, decay_step, decay_rate):
     return initial_lr * (decay_rate ** (epoch // decay_step))
-
 
 
 def count_non_zero_params(model) -> int:

@@ -9,8 +9,16 @@ from transformers import TrainingArguments, Trainer
 from tqdm import tqdm
 
 
-
-def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
+def rafm_train(
+    args,
+    model: RAFM,
+    data_shards,
+    val_dataset,
+    test_dataset=None,
+    processor=None,
+    collate_fn=None,
+    compute_metrics=None,
+):
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
 
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
@@ -31,21 +39,20 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         # load_best_model_at_end=True,
     )
     eval_args = TrainingArguments(
-            output_dir=os.path.join(args.save_dir, "global"),
-            per_device_train_batch_size=args.batch_size,
-            per_device_eval_batch_size=args.batch_size,
-            evaluation_strategy="no",
-            save_strategy="no",
-            num_train_epochs=args.num_local_epochs,
-            learning_rate=args.lr,
-            remove_unused_columns=False,
-            push_to_hub=False,
-            report_to="none",
-            label_names=["labels"],
-            # load_best_model_at_end=True,
+        output_dir=os.path.join(args.save_dir, "global"),
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
+        evaluation_strategy="no",
+        save_strategy="no",
+        num_train_epochs=args.num_local_epochs,
+        learning_rate=args.lr,
+        remove_unused_columns=False,
+        push_to_hub=False,
+        report_to="none",
+        label_names=["labels"],
+        # load_best_model_at_end=True,
     )
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
-
         epoch_train_loss = 0.0
 
         lr = step_lr(args.lr, epoch, args.step_size, 0.98)
@@ -55,10 +62,10 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
         if args.spp:
             model.salient_parameter_prioritization()
         avg_params = 0
-        
-        #shuffle the data shards
+
+        # shuffle the data shards
         np.random.shuffle(data_shards)
-        #Train each downsized model independently in a sequential manner
+        # Train each downsized model independently in a sequential manner
         for idx, data_shard in enumerate(tqdm(data_shards, desc="Mini-shard training")):
             if idx == 0:
                 ds_model = copy.deepcopy(model.model)
@@ -77,7 +84,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 ) = model.random_resource_aware_model()
 
             avg_params += ds_model_params
-            
+
             local_grad = copy.deepcopy(ds_model.to("cpu").state_dict())
 
             trainer = Trainer(
@@ -90,21 +97,19 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 tokenizer=processor,
             )
             train_results = trainer.train()
-            
+
             epoch_train_loss += train_results.metrics["train_loss"]
-            
+
             ds_model.to("cpu")
             import torch
-            with torch.no_grad():           
+
+            with torch.no_grad():
                 for key in ds_model.state_dict():
                     local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
-                
-            model.grad_accumulate(local_grad, alpha = data_shard.num_rows)
-            model.apply_grad(local_grad)
-    
 
-    
-        
+            model.grad_accumulate(local_grad, alpha=data_shard.num_rows)
+            model.apply_grad(local_grad)
+
         avg_params = avg_params / len(data_shards)
         writer.add_scalar(
             "global/params",
@@ -116,15 +121,13 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
             "global/train_loss",
             epoch_train_loss,
             epoch,
-        )        
+        )
 
         if epoch % args.log_interval == 0:
             # Evaluate the model
-            
-        
-        
+
             print(f"Training finished for epoch {epoch}")
-            
+
             print("*" * 20 + "Evaluating in epoch {}".format(epoch) + "*" * 20)
             # Evaluate the model at the end of each epoch
             trainer = Trainer(
@@ -136,7 +139,7 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 eval_dataset=val_dataset,
                 tokenizer=processor,
             )
-        
+
             metrics = trainer.evaluate(val_dataset)
             trainer.log_metrics("eval", metrics)
             trainer.save_metrics("eval", metrics)
@@ -153,8 +156,6 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 epoch,
             )
 
-    
-        
             model.model.to("cpu")
             if val_accuracy > best_acc:
                 best_acc = val_accuracy
@@ -172,7 +173,9 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 epoch,
             )
 
-            print(f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1} \nEpoch train loss: {epoch_train_loss}")
+            print(
+                f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1} \nEpoch train loss: {epoch_train_loss}"
+            )
             print("*" * 20 + "Evaluation finished" + "*" * 20)
 
             if test_dataset:
@@ -181,21 +184,28 @@ def rafm_train(args, model:RAFM, data_shards, val_dataset, test_dataset=None,pro
                 trainer.save_metrics("test", metrics)
 
             early_stopping(val_f1_score)
-            
+
         model.save_ckpt(os.path.join(args.save_dir, "last_model"))
-        
+
         # Apply the aggregated and normalized gradient to the full-size model
         model.apply_accumulate_grad(args.grad_beta)
-        
+
         if early_stopping.has_converged():
             print("Model has converged. Stopping training.")
             break
     return model
 
 
-
-
-def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_dataset=None,processor=None, collate_fn=None, compute_metrics=None):
+def rafm_train_imagenet(
+    args,
+    model: RAFM,
+    train_dataset,
+    val_dataset,
+    test_dataset=None,
+    processor=None,
+    collate_fn=None,
+    compute_metrics=None,
+):
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
 
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
@@ -216,35 +226,35 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
         # load_best_model_at_end=True,
     )
     eval_args = TrainingArguments(
-            output_dir=os.path.join(args.save_dir, "global"),
-            per_device_train_batch_size=args.batch_size,
-            per_device_eval_batch_size=args.batch_size,
-            evaluation_strategy="no",
-            save_strategy="no",
-            num_train_epochs=args.num_local_epochs,
-            learning_rate=args.lr,
-            remove_unused_columns=False,
-            push_to_hub=False,
-            report_to="none",
-            label_names=["labels"],
-            # load_best_model_at_end=True,
+        output_dir=os.path.join(args.save_dir, "global"),
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
+        evaluation_strategy="no",
+        save_strategy="no",
+        num_train_epochs=args.num_local_epochs,
+        learning_rate=args.lr,
+        remove_unused_columns=False,
+        push_to_hub=False,
+        report_to="none",
+        label_names=["labels"],
+        # load_best_model_at_end=True,
     )
-    
+
     steps = 0
 
     train_dataset = train_dataset.shuffle()
     # train_dataset.select(range(1000))
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
-        
         print("=" * 20 + "Training for epoch {}".format(epoch) + "=" * 20)
-        
+
         # sharding the dataset to args.num_shards shards
         indices = list(range(len(train_dataset)))
         np.random.shuffle(indices)
         size = len(indices) // args.num_shards
-        mini_shards = [indices[i * size : (i + 1) * size] for i in range(args.num_shards)]
+        mini_shards = [
+            indices[i * size : (i + 1) * size] for i in range(args.num_shards)
+        ]
         mini_shards[-1].extend(indices[args.num_shards * size :])
-
 
         epoch_train_loss = 0.0
 
@@ -255,13 +265,13 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
         if args.spp:
             model.salient_parameter_prioritization()
         avg_params = 0
-        
-        
-        #Train each downsized model independently in a sequential manner
-        for idx, mini_shard_idx in enumerate(tqdm(mini_shards, desc="Mini-shard training")):
-            
+
+        # Train each downsized model independently in a sequential manner
+        for idx, mini_shard_idx in enumerate(
+            tqdm(mini_shards, desc="Mini-shard training")
+        ):
             steps += 1
-            
+
             if idx == 0:
                 ds_model = copy.deepcopy(model.model)
                 ds_model_params = model.total_params
@@ -279,7 +289,7 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                 ) = model.random_resource_aware_model()
 
             avg_params += ds_model_params
-            
+
             local_grad = copy.deepcopy(ds_model.to("cpu").state_dict())
 
             trainer = Trainer(
@@ -292,23 +302,24 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                 tokenizer=processor,
             )
             train_results = trainer.train()
-            
+
             epoch_train_loss += train_results.metrics["train_loss"]
-            
+
             ds_model.to("cpu")
             import torch
-            with torch.no_grad():           
+
+            with torch.no_grad():
                 for key in ds_model.state_dict():
                     local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
-                
-            model.grad_accumulate(local_grad, alpha = len(mini_shard_idx))
+
+            model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
             model.apply_grad(local_grad)
-    
+
             if steps % args.log_interval == 0:
                 # Evaluate the model
-                
+
                 print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
-                
+
                 trainer = Trainer(
                     model=ds_model,
                     args=eval_args,
@@ -318,11 +329,14 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                     eval_dataset=val_dataset,
                     tokenizer=processor,
                 )
-                
-                metrics = trainer.evaluate(val_dataset)                
+
+                metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
                 trainer.save_metrics("eval", metrics)
-                val_accuracy, val_f1_score = metrics["eval_accuracy"], metrics["eval_f1"]
+                val_accuracy, val_f1_score = (
+                    metrics["eval_accuracy"],
+                    metrics["eval_f1"],
+                )
                 ds_model.to("cpu")
 
                 writer.add_scalar(
@@ -341,8 +355,7 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                     ds_model_params,
                     steps,
                 )
-        
-            
+
                 # model.model.to("cpu")
                 if val_accuracy > best_acc:
                     best_acc = val_accuracy
@@ -360,7 +373,9 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
                     steps,
                 )
 
-                print(f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1}  \nDownsized model size: {ds_model_params}")
+                print(
+                    f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1}  \nDownsized model size: {ds_model_params}"
+                )
                 print("*" * 20 + "Evaluation finished" + "*" * 20)
 
                 if test_dataset:
@@ -373,10 +388,9 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
 
                 # Apply the aggregated and normalized gradient to the full-size model
                 model.apply_accumulate_grad(args.grad_beta)
-                
+
             model.save_ckpt(os.path.join(args.save_dir, "last_model"))
-        
-        
+
         print("=" * 20 + "Training finished for epoch {}".format(epoch) + "=" * 20)
 
         avg_params = avg_params / len(mini_shards)
@@ -390,13 +404,9 @@ def rafm_train_imagenet(args, model:RAFM, train_dataset, val_dataset, test_datas
             "global/train_loss",
             epoch_train_loss,
             epoch,
-        )        
+        )
 
-    
-        
         if early_stopping.has_converged():
             print("Model has converged. Stopping training.")
             break
     return model
-
-

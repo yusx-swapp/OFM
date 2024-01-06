@@ -14,8 +14,8 @@ from rafm import RAFM, rafm_train_imagenet
 
 
 def compute_metrics(eval_pred):
-    """ This function is used to compute the metrics for the evaluation.
-    
+    """This function is used to compute the metrics for the evaluation.
+
     Args:
         eval_pred: The output of the Trainer.evaluate function
     returns:
@@ -38,7 +38,7 @@ def compute_metrics(eval_pred):
 
 
 def collate_fn(batch):
-    """ This function is used to collate the data samples into batches.
+    """This function is used to collate the data samples into batches.
     It is used to supply the DataLoader with the collate_fn argument.
 
     Args:
@@ -54,7 +54,9 @@ def collate_fn(batch):
 
 def transform(example_batch, processor):
     # Take a list of PIL images and turn them to pixel values
-    inputs = processor([x.convert("RGB") for x in example_batch["img"]], return_tensors="pt")
+    inputs = processor(
+        [x.convert("RGB") for x in example_batch["img"]], return_tensors="pt"
+    )
 
     # Include the labels
     inputs["labels"] = example_batch["label"]
@@ -71,17 +73,21 @@ def main(args):
         processor_name = "google/vit-base-patch16-224"
 
     # load data and preprocess
-    
+
     if args.huggingface_token:
         from huggingface_hub import login
-        login(args.huggingface_token)    
-    
-    dataset = load_dataset(args.dataset, cache_dir=args.cache_dir, trust_remote_code=True)
+
+        login(args.huggingface_token)
+
+    dataset = load_dataset(
+        args.dataset, cache_dir=args.cache_dir, trust_remote_code=True
+    )
 
     if args.dataset == "imagenet-1k":
-        assert args.huggingface_token is not None, "Please provide a HuggingFace token to download the ImageNet dataset"
+        assert (
+            args.huggingface_token is not None
+        ), "Please provide a HuggingFace token to download the ImageNet dataset"
         dataset = dataset.rename_column("image", "img")
-
 
     labels = dataset["train"].features["label"].names
 
@@ -89,7 +95,6 @@ def main(args):
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
-
 
     # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
@@ -104,7 +109,8 @@ def main(args):
         ckpt_path = model_name
         elastic_config = args.elastic_config
 
-    model = ViTForImageClassification.from_pretrained(ckpt_path,
+    model = ViTForImageClassification.from_pretrained(
+        ckpt_path,
         num_labels=len(labels),
         id2label={str(i): c for i, c in enumerate(labels)},
         label2id={c: str(i) for i, c in enumerate(labels)},
@@ -112,11 +118,15 @@ def main(args):
     )
 
     model = RAFM(model.to("cpu"), elastic_config)
-    
-
 
     model = rafm_train_imagenet(
-        args, model, prepared_ds["train"], prepared_ds["validation"], processor=processor, collate_fn=collate_fn, compute_metrics=compute_metrics
+        args,
+        model,
+        prepared_ds["train"],
+        prepared_ds["validation"],
+        processor=processor,
+        collate_fn=collate_fn,
+        compute_metrics=compute_metrics,
     )
 
     model.save_ckpt(os.path.join(args.save_dir, "final"))
@@ -126,4 +136,4 @@ if __name__ == "__main__":
     args = arguments()
     main(args)
 
-#python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json
+# python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json
