@@ -162,7 +162,7 @@ cython_debug/
 
 # debugger and ckpts
 **test**
-ckpts*/
+ckpt*/
 *.out
 *.err
 slurm*.sh
