@@ -67,6 +67,7 @@ def main(args):
     if args.model == "vit":
         model_name = "google/vit-base-patch16-224"
         # model_name = "edumunozsala/vit_base-224-in21k-ft-cifar100"
+        # model_name = "aaraki/vit-base-patch16-224-in21k-finetuned-cifar10"
         processor_name = "google/vit-base-patch16-224"
     elif args.model == "vit-large":
         model_name = "google/vit-base-patch16-224"
