@@ -9,7 +9,6 @@
         512
     ],
     "residual_hidden_space": [
-        1024,
-        512
+        1024
     ]
 }
