@@ -3,13 +3,24 @@ import argparse
 
 def arguments():
     parser = argparse.ArgumentParser(
-        description="Resource Adaptive Foundation Model Fine-tuning"
+        description="One-Shot Foundation Model Fine-tuning"
     )
     parser.add_argument(
         "--model",
         type=str,
         default="vit",
-        choices=["resnet", "vit", "vit-large", "distilbert", "bert-base", "bert-large"],
+        choices=[
+            "resnet",
+            "vit",
+            "vit-large",
+            "distilbert",
+            "bert-base",
+            "bert-large",
+            "roberta",
+            "t5-base",
+            "t5-small",
+            "t5-large",
+        ],
         help="Model architecture to use (resnet or vit)",
     )
     parser.add_argument(
@@ -37,6 +48,13 @@ def arguments():
             "cifar10",
             "Food101",
             "sst2",
+            "mnli",
+            "qqp",
+            "qnli",
+            "stsb",
+            "mrpc",
+            "rte",
+            "cola",
         ],
         help="Dataset to use",
     )
@@ -133,6 +151,12 @@ def arguments():
         # default="~/.cache/huggingface/datasets",
         default="/work/LAS/jannesar-lab/sixing/.cache",
         help="Cache directory for datasets",
+    )
+
+    parser.add_argument(
+        "--push_to_hub",
+        action="store_true",
+        help="Push model to HuggingFace Hub",
     )
 
     args = parser.parse_args()
