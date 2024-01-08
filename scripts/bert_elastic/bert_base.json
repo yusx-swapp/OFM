@@ -5,10 +5,10 @@
     "inter_hidden_space": [
         3072,
         960,
-        512
+        600
     ],
     "residual_hidden_space": [
         768,
-        512
+        600
     ]
 }
