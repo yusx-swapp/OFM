@@ -88,7 +88,9 @@ class RAFM:
             - arc_config (dict): The configuration of the smallest model
         """
         arc_config = arc_config_sampler(
-            **self.model.config.elastic_config, smallest=True
+            **self.model.config.elastic_config,
+            smallest=True,
+            n_layer=self.model.config.num_hidden_layers,
         )
         subnetwork, params = self.resource_aware_model(arc_config)
         return subnetwork, params, arc_config

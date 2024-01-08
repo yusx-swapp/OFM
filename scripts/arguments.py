@@ -121,7 +121,7 @@ def arguments():
     parser.add_argument(
         "--patience",
         type=int,
-        default=10,
+        default=20,
         help="Convergence patience for early stopping",
     )
 
@@ -159,5 +159,10 @@ def arguments():
         help="Push model to HuggingFace Hub",
     )
 
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Use mixed precision training",
+    )
     args = parser.parse_args()
     return args

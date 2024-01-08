@@ -165,7 +165,6 @@ def main(args):
         )
     elif args.model == "bert-base":
         model_name = "bert-base-uncased"
-        # model_name = "ishan/bert-base-uncased-mnli"
         tokenizer = BertTokenizerFast.from_pretrained(
             model_name, cache_dir=args.cache_dir
         )
