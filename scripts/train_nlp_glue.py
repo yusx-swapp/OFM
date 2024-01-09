@@ -38,10 +38,12 @@ def compute_metrics(eval_pred, task):
 
     if task == "stsb":
         pearsonr = evaluate.load("pearsonr")
-        results = pearsonr.compute(predictions.squeeze(), labels)
+        results = pearsonr.compute(
+            predictions=predictions.squeeze(), references=labels.squeeze()
+        )
         f1 = f1_metric.compute(
             predictions=predictions.squeeze(),
-            references=labels,
+            references=labels.squeeze(),
             average="weighted",
         )
         return {"metric": results["pearsonr"], "f1": f1["f1"]}
