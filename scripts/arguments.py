@@ -55,6 +55,7 @@ def arguments():
             "mrpc",
             "rte",
             "cola",
+            "squad_v2",
         ],
         help="Dataset to use",
     )
