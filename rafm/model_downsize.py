@@ -209,12 +209,22 @@ def bert_module_handler(model, arc_config):
         layer.output = new_dens_out_layer
 
     new_embeddings = BertEmbeddings(new_config)
-    new_pooler = BertPooler(new_config)
-    new_classifier = nn.Linear(new_config.hidden_size, model.classifier.out_features)
-
     subnetwork.bert.embeddings = new_embeddings
-    subnetwork.bert.pooler = new_pooler
-    subnetwork.classifier = new_classifier
+
+    # Sequence classification model
+    if hasattr(subnetwork, "classifier"):
+        new_pooler = BertPooler(new_config)
+        new_classifier = nn.Linear(
+            new_config.hidden_size, model.classifier.out_features
+        )
+        subnetwork.bert.pooler = new_pooler
+        subnetwork.classifier = new_classifier
+    # Question answering model
+    if hasattr(subnetwork, "qa_outputs"):
+        new_qa_outputs = nn.Linear(
+            new_config.hidden_size, model.qa_outputs.out_features
+        )
+        subnetwork.qa_outputs = new_qa_outputs
 
     subnetwork.config = new_config
     copy_weights_to_subnet(subnetwork, model)
