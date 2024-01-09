@@ -37,6 +37,7 @@ def rafm_train(
         report_to="none",
         label_names=["labels"],
         # load_best_model_at_end=True,
+        fp16=args.fp16,
     )
     eval_args = TrainingArguments(
         output_dir=os.path.join(args.save_dir, "global"),
