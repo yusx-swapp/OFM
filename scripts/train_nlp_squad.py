@@ -235,7 +235,7 @@ def main(args):
         model_name = "bert-base-uncased"
 
     elif args.model == "bert-large":
-        model_name = "bert-large-uncased-whole-word-masking"
+        model_name = "bert-large-uncased"
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, use_fast=True, cache_dir=args.cache_dir

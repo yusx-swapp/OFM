@@ -178,7 +178,7 @@ def main(args):
         )
 
     elif args.model == "bert-large":
-        model_name = "bert-large-uncased-whole-word-masking"
+        model_name = "bert-large-uncased"
         tokenizer = BertTokenizerFast.from_pretrained(
             model_name, cache_dir=args.cache_dir
         )
