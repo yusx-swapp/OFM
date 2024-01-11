@@ -52,13 +52,14 @@ def compute_metrics(eval_pred, task):
         probabilities_class_1 = predictions[:, 1]
         # Convert continuous predictions to binary (0 or 1) for the CoLA task
         binary_predictions = (probabilities_class_1 > 0.5).astype(int)
-
         matthews_metric = evaluate.load("matthews_correlation")
-        results = matthews_metric.compute(labels, binary_predictions)
+        results = matthews_metric.compute(
+            references=labels.squeeze(), predictions=binary_predictions.squeeze()
+        )
 
         f1 = f1_metric.compute(
-            predictions=binary_predictions,
-            references=labels,
+            predictions=binary_predictions.squeeze(),
+            references=labels.squeeze(),
             average="weighted",
         )
 
