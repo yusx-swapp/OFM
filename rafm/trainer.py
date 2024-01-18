@@ -11,7 +11,7 @@ from transformers import (
     Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
     DataCollatorForSeq2Seq,
-    EvalPrediction, 
+    EvalPrediction,
 )
 
 from tqdm import tqdm
@@ -150,12 +150,12 @@ def ofm_train(
 
             epoch_train_loss += train_results.metrics["train_loss"]
 
-            ds_model.to("cpu")
+            ds_weights = {k: v.cpu() for k, v in ds_model.state_dict().items()}
             import torch
 
             with torch.no_grad():
-                for key in ds_model.state_dict():
-                    local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
+                for key in ds_weights:
+                    local_grad[key] = local_grad[key] - ds_weights[key]
 
             model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
             model.apply_grad(local_grad)
@@ -175,7 +175,7 @@ def ofm_train(
                 #     tokenizer=processor,
                 # )
                 # ds_model.to("cuda")
-
+                # ds_model.cuda()
                 metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
                 trainer.save_metrics("eval" + f"-step {steps}", metrics)
