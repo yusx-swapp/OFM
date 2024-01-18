@@ -134,7 +134,7 @@ def ofm_train(
 
             avg_params += ds_model_params
 
-            local_grad = copy.deepcopy(ds_model.to("cpu").state_dict())
+            local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
 
             trainer = Trainer(
                 model=ds_model,
