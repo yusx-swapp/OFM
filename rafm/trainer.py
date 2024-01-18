@@ -57,7 +57,7 @@ def ofm_train(
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         evaluation_strategy="no",
-        save_strategy="epoch",
+        save_strategy="no",
         save_total_limit=1,
         num_train_epochs=args.num_local_epochs,
         learning_rate=args.lr,
@@ -174,8 +174,8 @@ def ofm_train(
                 #     eval_dataset=val_dataset,
                 #     tokenizer=processor,
                 # )
-                ds_model.to("cuda")
-                # ds_model.cuda()
+                # ds_model.to("cuda")
+                ds_model.cuda()
                 metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
                 trainer.save_metrics("eval" + f"-step {steps}", metrics)
