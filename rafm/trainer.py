@@ -174,7 +174,7 @@ def ofm_train(
                 #     eval_dataset=val_dataset,
                 #     tokenizer=processor,
                 # )
-                # ds_model.to("cuda")
+                ds_model.to("cuda")
                 # ds_model.cuda()
                 metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
