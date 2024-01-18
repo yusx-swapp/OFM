@@ -16,7 +16,7 @@ from transformers import (
 
 from tqdm import tqdm
 
-from transformers import AdamW
+from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
 
