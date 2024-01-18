@@ -165,5 +165,12 @@ def arguments():
         action="store_true",
         help="Use mixed precision training",
     )
+    parser.add_argument(
+        "--epoch_eval_size",
+        type=int,
+        default=5000,
+        help="Number of samples to use for evaluation in an epoch",
+    )
+
     args = parser.parse_args()
     return args

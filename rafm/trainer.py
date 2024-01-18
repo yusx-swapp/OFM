@@ -137,9 +137,8 @@ def ofm_train(
             local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
 
             # random sample 5k for evaluation
-            # val_indices = np.random.shuffle(list(range(len(val_dataset))))[:5000]
             val_indices = np.random.choice(
-                list(range(len(val_dataset))), size=5000, replace=False
+                list(range(len(val_dataset))), size=args.epoch_eval_size, replace=False
             )
             trainer = Trainer(
                 model=ds_model,
