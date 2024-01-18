@@ -56,7 +56,7 @@ def ofm_train(
         output_dir=os.path.join(args.save_dir, "training"),
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        evaluation_strategy="no",
+        evaluation_strategy="epoch",
         save_strategy="no",
         save_total_limit=1,
         num_train_epochs=args.num_local_epochs,
@@ -136,13 +136,18 @@ def ofm_train(
 
             local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
 
+            # random sample 5k for evaluation
+            # val_indices = np.random.shuffle(list(range(len(val_dataset))))[:5000]
+            val_indices = np.random.choice(
+                list(range(len(val_dataset))), size=5000, replace=False
+            )
             trainer = Trainer(
                 model=ds_model,
                 args=training_args,
                 data_collator=collate_fn,
                 compute_metrics=compute_metrics,
                 train_dataset=train_dataset.select(mini_shard_idx),
-                eval_dataset=val_dataset,
+                eval_dataset=val_dataset.select(val_indices),
                 tokenizer=processor,
                 optimizers=get_optimizer_and_scheduler(ds_model, lr),
             )
@@ -161,6 +166,7 @@ def ofm_train(
             model.apply_grad(local_grad)
 
             if (steps % args.log_interval == 0) or (steps % args.num_shards == 0):
+                # if False:
                 # Evaluate the model
 
                 print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
