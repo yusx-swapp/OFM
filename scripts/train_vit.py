@@ -9,8 +9,7 @@ from transformers import (
     ViTImageProcessor,
 )
 from arguments import arguments
-from rafm.utils import DatasetSplitter
-from rafm import RAFM, rafm_train
+from rafm import RAFM, ofm_train
 
 
 def compute_metrics(eval_pred):
@@ -34,7 +33,7 @@ def compute_metrics(eval_pred):
         average="weighted",
     )
 
-    return {"accuracy": accuracy["accuracy"], "f1": f1["f1"]}
+    return {"metric": accuracy["accuracy"], "f1": f1["f1"]}
 
 
 def collate_fn(batch):
@@ -102,19 +101,12 @@ def main(args):
 
     labels = dataset["train"].features["label"].names
 
-    processor = ViTImageProcessor.from_pretrained(processor_name)
+    processor = ViTImageProcessor.from_pretrained(
+        processor_name, cache_dir=args.cache_dir
+    )
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
-
-    splitter = DatasetSplitter(dataset["train"], seed=123)
-
-    mini_shards = splitter.split(args.num_shards, k_shot=args.k_shot, replacement=False)
-
-    for i, mini_shard in enumerate(mini_shards):
-        mini_shards[i] = mini_shard.with_transform(
-            functools.partial(transform, processor=processor)
-        )
 
     # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
@@ -135,18 +127,21 @@ def main(args):
         id2label={str(i): c for i, c in enumerate(labels)},
         label2id={c: str(i) for i, c in enumerate(labels)},
         ignore_mismatched_sizes=True,
+        cache_dir=args.cache_dir,
     )
 
     model = RAFM(model.to("cpu"), elastic_config)
-    model = rafm_train(
+
+    model = ofm_train(
         args,
         model,
-        mini_shards,
+        prepared_ds["train"],
         prepared_ds["validation"],
         processor=processor,
         collate_fn=collate_fn,
         compute_metrics=compute_metrics,
     )
+
     model.save_ckpt(os.path.join(args.save_dir, "final"))
 
 
