@@ -8,22 +8,13 @@ import numpy as np
 from transformers import (
     AutoModelForQuestionAnswering,
     AutoTokenizer,
-    TrainingArguments,
-    Trainer,
 )
 import evaluate
-import time
-
 from arguments import arguments
-from rafm import trainer
 from rafm.trainer import ofm_train_squad
 from rafm import RAFM
 
 random_seed = 123
-
-
-def step_lr(initial_lr, epoch, decay_step, decay_rate):
-    return initial_lr * (decay_rate ** (epoch // decay_step))
 
 
 def compute_metrics(eval_pred, features, examples):

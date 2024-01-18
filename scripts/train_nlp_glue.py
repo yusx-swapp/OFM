@@ -4,30 +4,12 @@ import numpy as np
 from datasets import load_dataset, concatenate_datasets
 import functools
 from rafm.trainer import ofm_train
-from torch.utils.tensorboard import SummaryWriter
-import copy
-import argparse
 from transformers import (
-    DistilBertForSequenceClassification,
-    DistilBertTokenizerFast,
-    Trainer,
-    TrainingArguments,
-    RobertaTokenizerFast,
-    T5Tokenizer,
     AutoTokenizer,
-    BertForSequenceClassification,
-    BertTokenizerFast,
-    DistilBertForSequenceClassification,
-    RobertaForSequenceClassification,
-    T5ForConditionalGeneration,
-    Trainer,
-    TrainingArguments,
+    AutoModelForSequenceClassification,
 )
-from rafm.utils import DatasetSplitter, step_lr, EarlyStopping
 from rafm import RAFM
 from arguments import arguments
-from scipy.stats import pearsonr
-from sklearn.metrics import accuracy_score, matthews_corrcoef
 import evaluate
 
 
@@ -144,49 +126,23 @@ def main(args):
 
     if args.model == "distilbert":
         model_name = "distilbert-base-uncased"
-        tokenizer = DistilBertTokenizerFast.from_pretrained(
-            model_name, cache_dir=args.cache_dir
-        )
-        model = DistilBertForSequenceClassification.from_pretrained(
-            model_name, num_labels=num_classes[args.dataset], cache_dir=args.cache_dir
-        )
 
     elif args.model == "roberta":
         model_name = "roberta-base"
-        tokenizer = RobertaTokenizerFast.from_pretrained(
-            model_name, cache_dir=args.cache_dir
-        )
-        model = RobertaForSequenceClassification.from_pretrained(
-            model_name, num_labels=num_classes[args.dataset], cache_dir=args.cache_dir
-        )
 
     elif args.model == "t5":
         model_name = "t5-small"  # You can also use "t5-base" or other T5 variants
-        tokenizer = T5Tokenizer.from_pretrained(model_name, cache_dir=args.cache_dir)
-        model = T5ForConditionalGeneration.from_pretrained(
-            model_name, cache_dir=args.cache_dir
-        )
+
     elif args.model == "bert-base":
         model_name = "bert-base-uncased"
-        tokenizer = BertTokenizerFast.from_pretrained(
-            model_name, cache_dir=args.cache_dir
-        )
-        model = BertForSequenceClassification.from_pretrained(
-            model_name,
-            num_labels=num_classes[args.dataset],
-            ignore_mismatched_sizes=True,
-            cache_dir=args.cache_dir,
-        )
 
     elif args.model == "bert-large":
         model_name = "bert-large-uncased"
-        tokenizer = BertTokenizerFast.from_pretrained(
-            model_name, cache_dir=args.cache_dir
-        )
-        model = BertForSequenceClassification.from_pretrained(
-            model_name, num_labels=num_classes[args.dataset], cache_dir=args.cache_dir
-        )
 
+    tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=args.cache_dir)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_name, num_labels=num_classes[args.dataset], cache_dir=args.cache_dir
+    )
     # load data and preprocess
     dataset = load_dataset("glue", args.dataset, cache_dir=args.cache_dir)
 

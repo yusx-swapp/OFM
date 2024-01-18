@@ -9,7 +9,6 @@ from transformers import (
     ViTImageProcessor,
 )
 from arguments import arguments
-from rafm.utils import DatasetSplitter
 from rafm import RAFM, rafm_train_imagenet
 
 

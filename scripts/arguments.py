@@ -18,7 +18,7 @@ def arguments():
             "bert-large",
             "roberta",
             "t5-base",
-            "t5-small",
+            "t5",
             "t5-large",
         ],
         help="Model architecture to use (resnet or vit)",
