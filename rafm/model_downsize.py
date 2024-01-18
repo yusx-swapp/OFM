@@ -18,6 +18,7 @@ __all__ = [
     "vit_peft_module_handler",
     "arc_config_sampler",
     "sam_module_handler",
+    "T5_module_handler",
 ]
 
 
@@ -424,6 +425,138 @@ def sam_module_handler(model, arc_config):
     total_params = calculate_params(sub_model)
 
     return sub_model, total_params
+
+
+def t5_module_handler(model, arc_config):
+    from transformers.models.t5.modeling_t5 import (
+        T5Config,
+        T5LayerSelfAttention,
+        T5LayerCrossAttention,
+        T5LayerFF,
+        T5LayerNorm,
+    )
+
+    subnetwork = copy.deepcopy(model).cpu()
+    # return subnetwork, calculate_params(subnetwork)
+    encoder_layers = subnetwork.encoder.block
+    new_config = T5Config.from_dict(model.config.to_dict())
+
+    for i, (layer, key) in enumerate(zip(encoder_layers, arc_config)):
+        arc = arc_config[key]
+        # new_config.hidden_size = arc  # Set to the new output dimension
+        new_config.d_kv = arc["atten_out"] // new_config.num_heads
+        new_config.d_ff = arc["inter_hidden"]
+        new_config.d_model = arc["residual_hidden"]
+
+        layer.layer[0] = T5LayerSelfAttention(
+            new_config, has_relative_attention_bias=bool(i == 0)
+        )
+        layer.layer[1] = T5LayerFF(new_config)
+
+    decoder_layers = subnetwork.decoder.block
+    for i, (layer, key) in enumerate(zip(decoder_layers, arc_config)):
+        arc = arc_config[key]
+        # new_config.hidden_size = arc  # Set to the new output dimension
+        new_config.d_kv = arc["atten_out"] // new_config.num_heads
+        new_config.d_ff = arc["inter_hidden"]
+        new_config.d_model = arc["residual_hidden"]
+
+        # layer.layer[0] = T5LayerSelfAttention(
+        #     new_config, has_relative_attention_bias=bool(i == 0)
+        # )
+        # layer.layer[1] = T5LayerCrossAttention(new_config)
+        layer.layer[2] = T5LayerFF(new_config)
+
+    subnetwork.shared = nn.Embedding(new_config.vocab_size, new_config.d_model)
+    # subnetwork.encoder.embed_tokens = subnetwork.shared
+    # subnetwork.decoder.embed_tokens = subnetwork.shared
+    subnetwork.encoder.final_layer_norm = T5LayerNorm(
+        new_config.d_model, eps=new_config.layer_norm_epsilon
+    )
+    subnetwork.decoder.final_layer_norm = T5LayerNorm(
+        new_config.d_model, eps=new_config.layer_norm_epsilon
+    )
+    subnetwork.lm_head = nn.Linear(
+        new_config.d_model, new_config.vocab_size, bias=False
+    )
+    subnetwork.config = new_config
+    copy_weights_to_subnet(subnetwork, model)
+
+    total_params = calculate_params(subnetwork)
+    return subnetwork, total_params
+
+
+def roberta_module_handler(model, arc_config):
+    from transformers.models.roberta.modeling_roberta import (
+        RobertaSelfAttention,
+        RobertaSelfOutput,
+        RobertaIntermediate,
+        RobertaOutput,
+        RobertaEmbeddings,
+        RobertaConfig,
+        RobertaClassificationHead,
+    )
+
+    class RobertaSelfAttention(RobertaSelfAttention):
+        def __init__(self, config):
+            super().__init__(config)
+
+            self.num_attention_heads = config.num_attention_heads
+            self.attention_head_size = config.attention_head_size
+            self.all_head_size = self.num_attention_heads * self.attention_head_size
+
+            self.query = nn.Linear(config.hidden_size, self.all_head_size)
+            self.key = nn.Linear(config.hidden_size, self.all_head_size)
+            self.value = nn.Linear(config.hidden_size, self.all_head_size)
+            self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+
+    class RobertaSelfOutput(RobertaSelfOutput):
+        def __init__(self, config):
+            super().__init__(config)
+            self.dense = nn.Linear(
+                config.attention_head_size * config.num_attention_heads,
+                config.hidden_size,
+            )
+            self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    subnetwork = copy.deepcopy(model).cpu()
+    roberta_layers = subnetwork.roberta.encoder.layer
+    new_config = RobertaConfig.from_dict(model.config.to_dict())
+
+    for i, (layer, key) in enumerate(zip(roberta_layers, arc_config)):
+        arc = arc_config[key]
+        new_config.attention_head_size = (
+            arc["atten_out"] // new_config.num_attention_heads
+        )
+        new_config.intermediate_size = arc["inter_hidden"]
+        new_config.hidden_size = arc["residual_hidden"]
+
+        new_attention_layer = RobertaSelfAttention(config=new_config)
+        new_out_layer = RobertaSelfOutput(config=new_config)
+        new_inter_layer = RobertaIntermediate(config=new_config)
+        new_dens_out_layer = RobertaOutput(config=new_config)
+
+        layer.attention.self = new_attention_layer
+        layer.attention.output = new_out_layer
+        layer.intermediate = new_inter_layer
+        layer.output = new_dens_out_layer
+
+    new_embeddings = RobertaEmbeddings(new_config)
+    subnetwork.roberta.embeddings = new_embeddings
+
+    if hasattr(subnetwork, "classifier"):
+        new_classifer = RobertaClassificationHead(new_config)
+        subnetwork.classifier = new_classifer
+    if hasattr(subnetwork, "qa_outputs"):
+        new_qa_outputs = nn.Linear(new_config.hidden_size, new_config.num_labels)
+        subnetwork.qa_outputs = new_qa_outputs
+
+    subnetwork.config = new_config
+    copy_weights_to_subnet(subnetwork, model)
+
+    total_params = calculate_params(subnetwork)
+
+    return subnetwork, total_params
 
 
 def vit_peft_module_handler(model: PeftModel, peft_config: PeftConfig, arc_config):
