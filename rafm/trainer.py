@@ -43,18 +43,22 @@ def ofm_train(
     processor=None,
     collate_fn=None,
     compute_metrics=None,
+    training_args = None,
 ):
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
 
+    #TODO: Wrap summary writer in a context manager
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
     best_acc = 0.0
     best_f1 = 0.0
+    #TODO: add training args as an argument
     training_args = TrainingArguments(
-        output_dir=os.path.join(args.save_dir, "downsize"),
+        output_dir=os.path.join(args.save_dir, "training"),
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         evaluation_strategy="no",
-        save_strategy="no",
+        save_strategy="epoch",
+        save_total_limit=1,
         num_train_epochs=args.num_local_epochs,
         learning_rate=args.lr,
         remove_unused_columns=False,
@@ -65,20 +69,20 @@ def ofm_train(
         weight_decay=1e-4,
         # load_best_model_at_end=True,
     )
-    eval_args = TrainingArguments(
-        output_dir=os.path.join(args.save_dir, "global"),
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        evaluation_strategy="no",
-        save_strategy="no",
-        num_train_epochs=args.num_local_epochs,
-        learning_rate=args.lr,
-        remove_unused_columns=False,
-        push_to_hub=False,
-        report_to="none",
-        label_names=["labels"],
-        # load_best_model_at_end=True,
-    )
+    # eval_args = TrainingArguments(
+    #     output_dir=os.path.join(args.save_dir, "eval"),
+    #     per_device_train_batch_size=args.batch_size,
+    #     per_device_eval_batch_size=args.batch_size,
+    #     evaluation_strategy="no",
+    #     save_strategy="no",
+    #     num_train_epochs=args.num_local_epochs,
+    #     learning_rate=args.lr,
+    #     remove_unused_columns=False,
+    #     push_to_hub=False,
+    #     report_to="none",
+    #     label_names=["labels"],
+    #     # load_best_model_at_end=True,
+    # )
 
     steps = 0
 
@@ -161,20 +165,22 @@ def ofm_train(
 
                 print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
 
-                trainer = Trainer(
-                    model=ds_model,
-                    args=eval_args,
-                    data_collator=collate_fn,
-                    compute_metrics=compute_metrics,
-                    train_dataset=None,
-                    eval_dataset=val_dataset,
-                    tokenizer=processor,
-                )
-
+                
+                # trainer = Trainer(
+                #     model=ds_model,
+                #     args=eval_args,
+                #     data_collator=collate_fn,
+                #     compute_metrics=compute_metrics,
+                #     train_dataset=None,
+                #     eval_dataset=val_dataset,
+                #     tokenizer=processor,
+                # )
+                ds_model.to("cuda")
+                
                 metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
-                trainer.save_metrics("eval", metrics)
-
+                trainer.save_metrics("eval" + f"-step {steps}", metrics)
+                
                 val_accuracy, val_f1_score = (
                     metrics["eval_metric"],
                     metrics["eval_f1"],
