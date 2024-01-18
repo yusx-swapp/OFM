@@ -17,6 +17,23 @@ from .trainer_seq2seq import QuestionAnsweringSeq2SeqTrainer
 
 from tqdm import tqdm
 
+from transformers import AdamW
+from torch.optim.lr_scheduler import LambdaLR
+
+
+def get_optimizer_and_scheduler(model, lr):
+    # Define the optimizer
+    optimizer = AdamW(model.parameters(), lr=lr)
+
+    # Define a custom scheduler
+    def lr_lambda(current_step: int):
+        # Custom learning rate decay
+        return max(0.1, 0.975**current_step)
+
+    scheduler = LambdaLR(optimizer, lr_lambda)
+
+    return optimizer, scheduler
+
 
 def rafm_train(
     args,
@@ -486,8 +503,8 @@ def ofm_train(
 
         epoch_train_loss = 0.0
 
-        # lr = step_lr(args.lr, epoch, args.step_size, 0.98)
-        # training_args.learning_rate = lr
+        lr = step_lr(args.lr, epoch, args.step_size, 0.98)
+        training_args.learning_rate = lr
         np.random.seed(int(time.time()))  # Set the seed to the current time
 
         if args.spp:
@@ -528,6 +545,7 @@ def ofm_train(
                 train_dataset=train_dataset.select(mini_shard_idx),
                 eval_dataset=val_dataset,
                 tokenizer=processor,
+                optimizers=get_optimizer_and_scheduler(ds_model, lr),
             )
             train_results = trainer.train()
 
