@@ -69,20 +69,6 @@ def ofm_train(
         weight_decay=1e-4,
         # load_best_model_at_end=True,
     )
-    # eval_args = TrainingArguments(
-    #     output_dir=os.path.join(args.save_dir, "eval"),
-    #     per_device_train_batch_size=args.batch_size,
-    #     per_device_eval_batch_size=args.batch_size,
-    #     evaluation_strategy="no",
-    #     save_strategy="no",
-    #     num_train_epochs=args.num_local_epochs,
-    #     learning_rate=args.lr,
-    #     remove_unused_columns=False,
-    #     push_to_hub=False,
-    #     report_to="none",
-    #     label_names=["labels"],
-    #     # load_best_model_at_end=True,
-    # )
 
     steps = 0
 
@@ -135,7 +121,10 @@ def ofm_train(
             avg_params += ds_model_params
 
             local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
-
+            
+            print("Training on {} parameters".format(ds_model_params))
+            
+            
             # random sample 5k for evaluation
             # val_indices = np.random.shuffle(list(range(len(val_dataset))))[:5000]
             val_indices = np.random.choice(
@@ -171,16 +160,6 @@ def ofm_train(
 
                 print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
 
-                # trainer = Trainer(
-                #     model=ds_model,
-                #     args=eval_args,
-                #     data_collator=collate_fn,
-                #     compute_metrics=compute_metrics,
-                #     train_dataset=None,
-                #     eval_dataset=val_dataset,
-                #     tokenizer=processor,
-                # )
-                # ds_model.to("cuda")
                 ds_model.cuda()
                 metrics = trainer.evaluate(val_dataset)
                 trainer.log_metrics("eval", metrics)
