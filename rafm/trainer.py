@@ -67,6 +67,7 @@ def ofm_train(
         label_names=["labels"],
         fp16=args.fp16,
         weight_decay=1e-4,
+        dataloader_num_workers=8,
         # load_best_model_at_end=True,
     )
 
@@ -121,10 +122,9 @@ def ofm_train(
             avg_params += ds_model_params
 
             local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
-            
+
             print("Training on {} parameters".format(ds_model_params))
-            
-            
+
             # random sample 5k for evaluation
             val_indices = np.random.choice(
                 list(range(len(val_dataset))), size=args.epoch_eval_size, replace=False
