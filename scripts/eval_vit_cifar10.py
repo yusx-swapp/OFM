@@ -35,8 +35,8 @@ def compute_metrics(p):
     )
 
 
-dataset = load_dataset("cifar100")
-dataset = dataset.rename_column("fine_label", "label")
+dataset = load_dataset("cifar10")
+# dataset = dataset.rename_column("fine_label", "label")
 
 train_val = dataset["train"].train_test_split(test_size=0.2, seed=123)
 
@@ -47,7 +47,8 @@ prepared_ds = dataset.with_transform(transform)
 
 
 # use our pretrained ckpts: https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100
-ckpt_path = "yusx-swapp/ofm-vit-base-patch16-224-cifar100"
+# ckpt_path = "yusx-swapp/ofm-vit-base-patch16-224-cifar100"
+ckpt_path = "/projects/bcha/syu2/RAFM/ckpts/cifar10-20-shard/last_model"
 labels = dataset["train"].features["label"].names
 
 model = ViTForImageClassification.from_pretrained(
@@ -58,7 +59,7 @@ model = ViTForImageClassification.from_pretrained(
 )
 
 training_args = TrainingArguments(
-    output_dir="./eval/vit-cifar100",
+    output_dir="./eval/vit-cifar10",
     per_device_train_batch_size=16,
     per_device_eval_batch_size=512,
     evaluation_strategy="no",
@@ -71,7 +72,7 @@ training_args = TrainingArguments(
     remove_unused_columns=False,
     push_to_hub=False,
     # report_to="tensorboard",
-    load_best_model_at_end=True,
+    # load_best_model_at_end=True,
     dataloader_num_workers=8,
 )
 
