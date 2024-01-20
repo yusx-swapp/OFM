@@ -48,7 +48,7 @@ prepared_ds = dataset.with_transform(transform)
 
 # use our pretrained ckpts: https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100
 # ckpt_path = "yusx-swapp/ofm-vit-base-patch16-224-cifar100"
-ckpt_path = "/projects/bcha/syu2/RAFM/ckpts/cifar10-20-shard/last_model"
+ckpt_path = "/work/LAS/jannesar-lab/yusx/RAFM/ckpts/cifar10-20-shard/last_model"
 labels = dataset["train"].features["label"].names
 
 model = ViTForImageClassification.from_pretrained(
@@ -78,7 +78,7 @@ training_args = TrainingArguments(
 
 
 raffm_model = RAFM(model)
-print("Original FM number of parameters:", raffm_model.total_params)
+print("downsize model params:", raffm_model.total_params)
 
 scaled_model, params, _ = raffm_model.smallest_model()
 
@@ -98,7 +98,7 @@ trainer.log_metrics("eval", metrics)
 trainer.save_metrics("eval-size-{}".format(params), metrics)
 
 
-for i in range(0, 120):
+for i in range(0, 500):
     scaled_model, params, _ = raffm_model.random_resource_aware_model()
     trainer = Trainer(
         model=scaled_model.to("cuda"),

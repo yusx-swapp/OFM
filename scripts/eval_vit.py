@@ -60,7 +60,7 @@ model = ViTForImageClassification.from_pretrained(
 training_args = TrainingArguments(
     output_dir="./eval/vit-cifar100",
     per_device_train_batch_size=16,
-    per_device_eval_batch_size=2048,
+    per_device_eval_batch_size=512,
     evaluation_strategy="no",
     num_train_epochs=4,
     # save_steps=100,
@@ -77,7 +77,7 @@ training_args = TrainingArguments(
 
 
 raffm_model = RAFM(model)
-print("Original FM number of parameters:", raffm_model.total_params)
+print("downsize model params:", raffm_model.total_params)
 
 scaled_model, params, _ = raffm_model.smallest_model()
 
@@ -97,7 +97,7 @@ trainer.log_metrics("eval", metrics)
 trainer.save_metrics("eval-size-{}".format(params), metrics)
 
 
-for i in range(0, 120):
+for i in range(0, 500):
     scaled_model, params, _ = raffm_model.random_resource_aware_model()
     trainer = Trainer(
         model=scaled_model.to("cuda"),
