@@ -12,6 +12,8 @@ from .model_downsize import (
     vit_module_handler,
     sam_module_handler,
     t5_module_handler,
+    roberta_module_handler,
+    distilbert_module_handler,
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
@@ -57,33 +59,17 @@ class RAFM:
         Returns:
             _type_: _description_
         """
-
-        if "bert" == self.model.config.model_type.lower():
-            arc_config = arc_config_sampler(
-                **self.model.config.elastic_config,
-                n_layer=self.model.config.num_hidden_layers,
-            )
-            subnetwork, total_params = bert_module_handler(self.model, arc_config)
-        elif "vit" == self.model.config.model_type.lower():
-            arc_config = arc_config_sampler(
-                **self.model.config.elastic_config,
-                n_layer=self.model.config.num_hidden_layers,
-            )
-            subnetwork, total_params = vit_module_handler(self.model, arc_config)
-        elif "sam" == self.model.config.model_type.lower():
+        arc_config = arc_config_sampler(
+            **self.model.config.elastic_config,
+            n_layer=self.model.config.num_hidden_layers,
+        )
+        if "sam" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
                 n_layer=self.model.vision_encoder.config.num_hidden_layers,
             )
-            subnetwork, total_params = sam_module_handler(self.model, arc_config)
-        elif "t5" == self.model.config.model_type.lower():
-            arc_config = arc_config_sampler(
-                **self.model.config.elastic_config,
-                n_layer=self.model.config.num_layers,
-            )
-            subnetwork, total_params = t5_module_handler(self.model, arc_config)
-        else:
-            raise NotImplementedError
+        subnetwork, total_params = self.resource_aware_model(arc_config)
+
         return subnetwork, total_params, arc_config
 
     def smallest_model(self):
@@ -111,6 +97,10 @@ class RAFM:
             return sam_module_handler(self.model, arc_config)
         elif "t5" == self.model.config.model_type.lower():
             return t5_module_handler(self.model, arc_config)
+        elif "roberta" == self.model.config.model_type.lower():
+            return roberta_module_handler(self.model, arc_config)
+        elif "distilbert" == self.model.config.model_type.lower():
+            return distilbert_module_handler(self.model, arc_config)
         else:
             raise NotImplementedError
 

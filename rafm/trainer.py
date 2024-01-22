@@ -150,7 +150,7 @@ def ofm_train(
                 for key in ds_weights:
                     local_grad[key] = local_grad[key] - ds_weights[key]
 
-            model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
+            # model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
             model.apply_grad(local_grad)
 
             if (steps % args.log_interval == 0) or (steps % args.num_shards == 0):
@@ -261,42 +261,21 @@ def ofm_train_squad(
     best_acc = 0.0
     best_f1 = 0.0
     training_args = TrainingArguments(
-        output_dir=os.path.join(args.save_dir, "downsize"),
+        output_dir=os.path.join(args.save_dir, "training"),
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         evaluation_strategy="no",
         save_strategy="no",
+        save_total_limit=1,
         num_train_epochs=args.num_local_epochs,
         learning_rate=args.lr,
-        remove_unused_columns=False,
+        remove_unused_columns=True,
         push_to_hub=False,
         report_to="none",
         label_names=["labels"],
         fp16=args.fp16,
-        # load_best_model_at_end=True,
-    )
-    # eval_args = TrainingArguments(
-    #     output_dir=os.path.join(args.save_dir, "global"),
-    #     per_device_train_batch_size=args.batch_size,
-    #     per_device_eval_batch_size=args.batch_size,
-    #     evaluation_strategy="no",
-    #     save_strategy="no",
-    #     num_train_epochs=args.num_local_epochs,
-    #     learning_rate=args.lr,
-    #     # remove_unused_columns=False,
-    #     push_to_hub=False,
-    #     report_to="none",
-    #     label_names=["labels"],
-    #     # load_best_model_at_end=True,
-    # )
-    trainer = Trainer(
-        model=None,
-        args=training_args,
-        data_collator=collate_fn,
-        compute_metrics=compute_metrics,
-        train_dataset=train_dataset.select(mini_shard_idx),
-        eval_dataset=val_dataset,
-        tokenizer=processor,
+        weight_decay=1e-4,
+        dataloader_num_workers=8,
     )
     steps = 0
 
@@ -305,20 +284,13 @@ def ofm_train_squad(
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
         print("=" * 20 + "Training for epoch {}".format(epoch) + "=" * 20)
 
-        # sharding the dataset to args.num_shards shards
-        indices = list(range(len(train_dataset)))
-        np.random.shuffle(indices)
-        size = len(indices) // args.num_shards
-        mini_shards = [
-            indices[i * size : (i + 1) * size] for i in range(args.num_shards)
-        ]
-        mini_shards[-1].extend(indices[args.num_shards * size :])
-
         epoch_train_loss = 0.0
 
-        # lr = step_lr(args.lr, epoch, args.step_size, 0.98)
+        lr = step_lr(args.lr, epoch, args.step_size, 0.98)
         # lr = trainer.learning_rate
-        # training_args.learning_rate = lr
+        # lr = trainer.state.lear
+        training_args.learning_rate = lr
+
         np.random.seed(int(time.time()))  # Set the seed to the current time
 
         if args.spp:
@@ -326,9 +298,10 @@ def ofm_train_squad(
         avg_params = 0
 
         # Train each downsized model independently in a sequential manner
-        for idx, mini_shard_idx in enumerate(
-            tqdm(mini_shards, desc="Mini-shard training")
-        ):
+        for idx in tqdm(range(args.num_shards), desc="Mini-shard training"):
+            # for idx, mini_shard_idx in enumerate(
+            #     tqdm(mini_shards, desc="Mini-shard training")
+            # ):
             steps += 1
 
             if idx == 0:
@@ -349,47 +322,44 @@ def ofm_train_squad(
 
             avg_params += ds_model_params
 
-            local_grad = copy.deepcopy(ds_model.to("cpu").state_dict())
+            local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
 
-            # trainer = Trainer(
-            #     model=ds_model,
-            #     args=training_args,
-            #     data_collator=collate_fn,
-            #     compute_metrics=compute_metrics,
-            #     train_dataset=train_dataset.select(mini_shard_idx),
-            #     eval_dataset=val_dataset,
-            #     tokenizer=processor,
-            # )
-            trainer.model = ds_model
+            print("Training on {} parameters".format(ds_model_params))
+
+            trainer = Trainer(
+                model=ds_model,
+                args=training_args,
+                data_collator=collate_fn,
+                compute_metrics=compute_metrics,
+                train_dataset=train_dataset.shard(
+                    num_shards=args.num_shards, index=idx
+                ),
+                # eval_dataset=val_dataset.select(val_indices),
+                tokenizer=processor,
+                optimizers=get_optimizer_and_scheduler(ds_model, lr),
+            )
+
             train_results = trainer.train()
 
             epoch_train_loss += train_results.metrics["train_loss"]
 
-            ds_model.to("cpu")
+            ds_weights = {k: v.cpu() for k, v in ds_model.state_dict().items()}
             import torch
 
             with torch.no_grad():
-                for key in ds_model.state_dict():
-                    local_grad[key] = local_grad[key] - ds_model.state_dict()[key]
+                for key in ds_weights:
+                    local_grad[key] = local_grad[key] - ds_weights[key]
 
-            model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
+            model.grad_accumulate(
+                local_grad,
+                alpha=len(train_dataset.shard(num_shards=args.num_shards, index=idx)),
+            )
             model.apply_grad(local_grad)
 
             if (steps % args.log_interval == 0) or (steps % args.num_shards == 0):
                 # Evaluate the model
 
                 print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
-
-                # trainer = Trainer(
-                #     model=ds_model.eval(),
-                #     args=eval_args,
-                #     data_collator=collate_fn,
-                #     compute_metrics=compute_metrics,
-                #     train_dataset=None,
-                #     eval_dataset=val_dataset,
-                #     tokenizer=processor,
-                # )
-
                 predictions = trainer.predict(val_dataset)
                 ds_model.to("cpu")
                 metrics = compute_metrics(predictions)
@@ -399,8 +369,8 @@ def ofm_train_squad(
                 trainer.save_metrics("eval", metrics)
 
                 val_accuracy, val_f1_score = (
-                    metrics["HasAns_exact"],
-                    metrics["HasAns_f1"],
+                    metrics["exact_match"],
+                    metrics["f1"],
                 )
 
                 writer.add_scalar(
@@ -459,7 +429,7 @@ def ofm_train_squad(
 
         print("=" * 20 + "Training finished for epoch {}".format(epoch) + "=" * 20)
 
-        avg_params = avg_params / len(mini_shards)
+        avg_params = avg_params / args.num_shards
         writer.add_scalar(
             "global/params",
             avg_params,

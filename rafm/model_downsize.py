@@ -19,6 +19,7 @@ __all__ = [
     "arc_config_sampler",
     "sam_module_handler",
     "T5_module_handler",
+    "distilbert_module_handler",
 ]
 
 
@@ -556,6 +557,68 @@ def roberta_module_handler(model, arc_config):
 
     total_params = calculate_params(subnetwork)
 
+    return subnetwork, total_params
+
+
+def distilbert_module_handler(model, arc_config):
+    from transformers.models.distilbert.modeling_distilbert import (
+        DistilBertConfig,
+        Embeddings,
+    )
+
+    subnetwork = copy.deepcopy(model).cpu()
+    distilbert_layers = subnetwork.distilbert.transformer.layer
+    new_config = DistilBertConfig.from_dict(model.config.to_dict())
+
+    for i, (layer, key) in enumerate(zip(distilbert_layers, arc_config)):
+        arc = arc_config[key]
+        new_config.attention_head_size = (
+            arc["atten_out"] // new_config.num_attention_heads
+        )
+        new_config.dim = arc["residual_hidden"]
+        new_config.hidden_dim = arc["inter_hidden"]
+
+        layer.attention.q_lin = nn.Linear(
+            new_config.dim,
+            new_config.attention_head_size * new_config.num_attention_heads,
+        )
+        layer.attention.k_lin = nn.Linear(
+            new_config.dim,
+            new_config.attention_head_size * new_config.num_attention_heads,
+        )
+        layer.attention.v_lin = nn.Linear(
+            new_config.dim,
+            new_config.attention_head_size * new_config.num_attention_heads,
+        )
+        layer.attention.out_lin = nn.Linear(
+            new_config.attention_head_size * new_config.num_attention_heads,
+            new_config.dim,
+        )
+        layer.sa_layer_norm = nn.LayerNorm(new_config.dim, eps=layer.sa_layer_norm.eps)
+
+        layer.ffn.lin1 = nn.Linear(new_config.dim, new_config.hidden_dim)
+        layer.ffn.lin2 = nn.Linear(new_config.hidden_dim, new_config.dim)
+        layer.output_layer_norm = nn.LayerNorm(
+            new_config.dim, eps=layer.output_layer_norm.eps
+        )
+
+    new_embeddings = Embeddings(new_config)
+    subnetwork.distilbert.embeddings = new_embeddings
+
+    if hasattr(subnetwork, "pre_classifier"):
+        new_pre_classifier = nn.Linear(new_config.dim, new_config.dim)
+        subnetwork.pre_classifier = new_pre_classifier
+    if hasattr(subnetwork, "classifier"):
+        new_classifier = nn.Linear(new_config.dim, new_config.num_labels)
+        subnetwork.classifier = new_classifier
+    if hasattr(subnetwork, "qa_outputs"):
+        new_qa_outputs = nn.Linear(new_config.dim, new_config.num_labels)
+        subnetwork.qa_outputs = new_qa_outputs
+
+    subnetwork.config = new_config
+    copy_weights_to_subnet(subnetwork, model)
+
+    total_params = calculate_params(subnetwork)
     return subnetwork, total_params
 
 
