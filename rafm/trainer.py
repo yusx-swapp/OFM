@@ -350,10 +350,10 @@ def ofm_train_squad(
                 for key in ds_weights:
                     local_grad[key] = local_grad[key] - ds_weights[key]
 
-            model.grad_accumulate(
-                local_grad,
-                alpha=len(train_dataset.shard(num_shards=args.num_shards, index=idx)),
-            )
+            # model.grad_accumulate(
+            #     local_grad,
+            #     alpha=len(train_dataset.shard(num_shards=args.num_shards, index=idx)),
+            # )
             model.apply_grad(local_grad)
 
             if (steps % args.log_interval == 0) or (steps % args.num_shards == 0):
@@ -421,7 +421,7 @@ def ofm_train_squad(
                     early_stopping(val_f1_score)
 
                 # Apply the aggregated and normalized gradient to the full-size model
-                model.apply_accumulate_grad(args.grad_beta)
+                # model.apply_accumulate_grad(args.grad_beta)
 
             model.save_ckpt(os.path.join(args.save_dir, "last_model"))
             # if args.push_to_hub:

@@ -56,6 +56,7 @@ def arguments():
             "rte",
             "cola",
             "squad_v2",
+            "squad",
         ],
         help="Dataset to use",
     )
@@ -122,7 +123,7 @@ def arguments():
     parser.add_argument(
         "--patience",
         type=int,
-        default=20,
+        default=500,
         help="Convergence patience for early stopping",
     )
 

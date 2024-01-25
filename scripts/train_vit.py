@@ -4,10 +4,7 @@ import numpy as np
 from datasets import load_dataset
 import functools
 import evaluate
-from transformers import (
-    ViTForImageClassification,
-    ViTImageProcessor,
-)
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
 from rafm import RAFM, ofm_train
 
@@ -64,10 +61,9 @@ def transform(example_batch, processor):
 
 def main(args):
     if args.model == "vit":
-        model_name = "google/vit-base-patch16-224"
-        # model_name = "edumunozsala/vit_base-224-in21k-ft-cifar100"
-        # model_name = "aaraki/vit-base-patch16-224-in21k-finetuned-cifar10"
-        processor_name = "google/vit-base-patch16-224"
+        # model_name = "google/vit-base-patch16-224"
+        model_name = "facebook/deit-base-patch16-224"
+        processor_name = "facebook/deit-base-patch16-224"
     elif args.model == "vit-large":
         model_name = "google/vit-base-patch16-224"
         processor_name = "google/vit-base-patch16-224"
@@ -101,7 +97,7 @@ def main(args):
 
     labels = dataset["train"].features["label"].names
 
-    processor = ViTImageProcessor.from_pretrained(
+    processor = AutoImageProcessor.from_pretrained(
         processor_name, cache_dir=args.cache_dir
     )
     prepared_ds = dataset.with_transform(
@@ -121,7 +117,7 @@ def main(args):
         ckpt_path = model_name
         elastic_config = args.elastic_config
 
-    model = ViTForImageClassification.from_pretrained(
+    model = AutoModelForImageClassification.from_pretrained(
         ckpt_path,
         num_labels=len(labels),
         id2label={str(i): c for i, c in enumerate(labels)},
