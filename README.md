@@ -1,6 +1,5 @@
 # One Foundation Model Fits All (OFM): Single-stage Foundation Model Training with Zero-shot Deployment
 
-
 This is the official implementation for the paper:
 
 _One Foundation Model Fits All: Single-stage Foundation Model Training with Zero-shot Deployment_
@@ -9,8 +8,9 @@ _One Foundation Model Fits All: Single-stage Foundation Model Training with Zero
 
 - [x] [11/07/2023] High-level API for edge
 - [x] [12/04/2023] APIs for Segment Anything (SAM)
-- [x] [02/01/2024] ViT-base supernet checkpoints pushed to huggingface model hub 
+- [x] [02/01/2024] ViT-base supernet checkpoints pushed to huggingface model hub
 - [x] [02/01/2024] Hands on tutorial for quickly specialize FM with zero-shot
+
 ## Installation
 
 First, create a conda environment, then install pytorch.
@@ -29,26 +29,30 @@ pip install .
 ```
 
 ## Super-FMs checkpoints
-OFM modeling a given foundation model (FM) as a supernet, with single-stage FM training, the FM can be quickly specialized to a wide range of resource constaints (> $10^{12}$) with zero-shot. 
+
+OFM modeling a given foundation model (FM) as a supernet, with single-stage FM training, the FM can be quickly specialized to a wide range of resource constaints (> $10^{12}$) with zero-shot.
 
 We validate the results we reported in our paper, we provide several trained supernet checkpoints. These checkpoints are been pushed to the anonymous Huggingface model hub Repos, you can find in following links.
+
 ### Checkpoints Links
 
 We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+
 - [Super-ViT-Base for ImageNet](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-imagenet)
 - [Super-ViT-Base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100)
-- [Super-ViT-Base for CIFAR-10](https://drive.google.com/drive/folders/1gd_RHZYX-YSYk56dO2oo8wqqSIUD41vb?usp=sharing) 
+- [Super-ViT-Base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar10)
 
-***You dont need download the ckpt files, you can use Huggingface Model Card to load the ckpt files directly. 
-We will show you how to do that in the following section.***
+**_You dont need download the ckpt files, you can use Huggingface Model Card to load the ckpt files directly.
+We will show you how to do that in the following section._**
 
 ### Checkpoints Usage
 
 **We provide detailed instructions and hands on tutorial for you to validate our zero-shot downsized models:**
 
- - [Example on quickly specialize ViT with zero-shot downsized models](./examples/post_training_deployment/vit_zero_shot_specialization_turorial.ipynb)
+- [Example on quickly specialize ViT with zero-shot downsized models](./examples/post_training_deployment/vit_zero_shot_specialization_turorial.ipynb)
 
-Besides, we also provide a high-level API for you to quickly generate zero-shot models for your own supernet with **2 lines of codes**, as shown in the following example: 
+Besides, we also provide a high-level API for you to quickly generate zero-shot models for your own supernet with **2 lines of codes**, as shown in the following example:
+
 ```python
 from transformers import AutoModelForImageClassification
 from ofm import OFM
@@ -70,9 +74,7 @@ ds_model, params, config = supernet.random_resource_aware_model()
 print("subnetwork params",params)
 ```
 
-
 ## Train your own super-FMs
-
 
 ### Scripts for train Super-ViT
 
@@ -87,7 +89,7 @@ python3 scripts/train_vit.py --model vit \
 --batch_size 224 \
 --elastic_config scripts/elastic_space.json \
 --spp \
---log_interval 100 
+--log_interval 100
 ```
 
 To check the results, you can:
@@ -95,8 +97,8 @@ To check the results, you can:
 - Check the output information from the terminal console
 - Use tensorboard: `tensorboard --logdir log/vit`
 
-
 ### Training on ImageNet
+
 Before you start, you have to be granted access to the ImageNet dataset. You can request and download the dataset from [here](https://huggingface.co/datasets/imagenet-1k).
 
 Set the arguments ` --huggingface_token` to your huggingface token, which should have be granted access to the ImageNet dataset.
@@ -109,14 +111,14 @@ python3 scripts/train_vit.py --model vit \
 --lr 2e-5 \
 --batch_size 152 \
 --log_interval 500 \
---huggingface_token "your-token-here" \  
---elastic_config scripts/elastic_space.json 
+--huggingface_token "your-token-here" \
+--elastic_config scripts/elastic_space.json
 ```
 
 **[Note]**: More APIs and scripts will post, please check the [**Updates**](#updates).
 
-
 ## Supported Foundation Models (02/01/2024)
+
 - [x] ViT
 - [x] BERT
 - [x] RoBERTa
