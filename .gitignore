@@ -168,5 +168,6 @@ ckpt*/
 slurm*.sh
 log/
 *results.json
-examples/
+examples/ckpt/
+examples/logs/
 scripts/eval/*

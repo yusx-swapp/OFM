@@ -150,7 +150,8 @@ def arguments():
     parser.add_argument(
         "--cache_dir",
         type=str,
-        default="~/.cache/huggingface/datasets",
+        # default="~/.cache/huggingface/datasets",
+        default="/work/LAS/jannesar-lab/sixing/.cache",
         help="Cache directory for datasets",
     )
 

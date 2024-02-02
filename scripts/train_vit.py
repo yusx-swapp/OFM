@@ -61,12 +61,11 @@ def transform(example_batch, processor):
 
 def main(args):
     if args.model == "vit":
-        # model_name = "google/vit-base-patch16-224"
-        model_name = "facebook/deit-base-patch16-224"
-        processor_name = "facebook/deit-base-patch16-224"
-    elif args.model == "vit-large":
         model_name = "google/vit-base-patch16-224"
         processor_name = "google/vit-base-patch16-224"
+    elif args.model == "vit-large":
+        model_name = "google/vit-large-patch16-224"
+        processor_name = "google/vit-large-patch16-224"
 
     # load data and preprocess
 
