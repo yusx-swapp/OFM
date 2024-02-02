@@ -6,7 +6,7 @@ import functools
 import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
-from rafm import RAFM, ofm_train
+from ofm import OFM, ofm_train
 
 
 def compute_metrics(eval_pred):
@@ -126,7 +126,7 @@ def main(args):
         cache_dir=args.cache_dir,
     )
 
-    model = RAFM(model.to("cpu"), elastic_config)
+    model = OFM(model.to("cpu"), elastic_config)
 
     model = ofm_train(
         args,
