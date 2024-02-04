@@ -1,15 +1,12 @@
 # Zero-shot foundation model specialization with OFM
 
-
 ## Experiment Goal
 
 In this experiment we show:
 
-**OFM Super-FMs trained is highly scalable, and can be used to a large number of generate high-performance zero-shot downsized models (> $10^{12}$) without further training** 
- 
+**OFM Super-FMs trained is highly scalable, and can be used to a large number of generate high-performance zero-shot downsized models (> $10^{12}$) without further training**
 
 Most importantly, such downsized FMs are **high-performance**, which can be directly deployed to edge devices without further training.
- 
 
 ## Reproduce the Experiments
 
@@ -27,14 +24,16 @@ pip install -r requirements.txt
 ### The provided Super-FMs checkpoints
 
 We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+
 - [Super-ViT-Base for ImageNet](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-imagenet)
 - [Super-ViT-Base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100)
-- [Super-ViT-Base for CIFAR-10](https://drive.google.com/drive/folders/1gd_RHZYX-YSYk56dO2oo8wqqSIUD41vb?usp=sharing) 
+- [Super-ViT-Base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar10)
 
 ### Run the Experiments
 
 We provide a Jupyter Notebook Tutorial **[vit_zero_shot_specialization_turorial.ipynb](./vit_zero_shot_specialization_turorial.ipynb)** with detailed instruction and high level APIs to reproduce our experiments.
-<!-- 
+
+<!--
 ## Results
 
 We have some simple meta results shown on the tutorial: **[post_training_deployment.ipynb](./post_training_deployment.ipynb)**
