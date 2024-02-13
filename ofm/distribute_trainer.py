@@ -5,7 +5,7 @@ import copy
 import os
 import time
 import numpy as np
-from .utils import EarlyStopping, step_lr
+from .utils import EarlyStopping, step_lr, Logger
 from .modeling_ofm import OFM
 from transformers import (
     TrainingArguments,
@@ -45,7 +45,6 @@ def get_optimizer_and_scheduler(model, lr):
 
     return optimizer, scheduler
 
-
 def ofm_dist_train(
     args,
     model: OFM,
@@ -68,7 +67,7 @@ def ofm_dist_train(
     writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
     best_acc = 0.0
     best_f1 = 0.0
-    # TODO: add training args as an argument
+    # TODO: add training args as an s
     training_args = TrainingArguments(
         output_dir=os.path.join(args.save_dir, "training"),
         per_device_train_batch_size=args.batch_size,
@@ -115,7 +114,6 @@ def ofm_dist_train(
     local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
 
     print("Training on {} parameters".format(ds_model_params))
-
     # random sample 5k for evaluation
     val_indices = np.random.choice(
         list(range(len(val_dataset))), size=args.epoch_eval_size, replace=False

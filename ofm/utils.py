@@ -194,3 +194,28 @@ class DatasetSplitter:
             Dataset.from_dict(self.dataset[indices]) for indices in sub_datasets_indices
         ]
         return sub_datasets
+
+import os
+from torch.utils.tensorboard import SummaryWriter
+
+class Logger:
+    def __init__(self, save_dir, model, initial_best_acc=0, initial_best_f1=0, log_dir="logs"):
+        self.save_dir = save_dir
+        self.model = model
+        self.best_acc = initial_best_acc
+        self.best_f1 = initial_best_f1
+        # self.writer = None
+        self.log_dir = log_dir
+        self.writer = SummaryWriter(os.path.join(self.save_dir, self.log_dir))
+    def __enter__(self):
+        
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.writer.close()
+
+    def log_metrics(self, metrics, step, prefix="val"):
+        for tag, value in metrics.items():
+            self.writer.add_scalar(tag, value, step)
+
+
