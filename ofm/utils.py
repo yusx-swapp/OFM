@@ -3,6 +3,8 @@ from torch.nn import Parameter
 import random
 from datasets import Dataset
 import json
+import os
+from torch.utils.tensorboard import SummaryWriter
 
 
 def save_dict_to_file(dictionary, file_path):
@@ -195,20 +197,15 @@ class DatasetSplitter:
         ]
         return sub_datasets
 
-import os
-from torch.utils.tensorboard import SummaryWriter
 
 class Logger:
-    def __init__(self, save_dir, model, initial_best_acc=0, initial_best_f1=0, log_dir="logs"):
-        self.save_dir = save_dir
-        self.model = model
-        self.best_acc = initial_best_acc
-        self.best_f1 = initial_best_f1
+    def __init__(self, log_dir="logs"):
         # self.writer = None
         self.log_dir = log_dir
-        self.writer = SummaryWriter(os.path.join(self.save_dir, self.log_dir))
+        self.writer = SummaryWriter(self.log_dir)
+
     def __enter__(self):
-        
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -216,6 +213,5 @@ class Logger:
 
     def log_metrics(self, metrics, step, prefix="val"):
         for tag, value in metrics.items():
-            self.writer.add_scalar(tag, value, step)
-
-
+            # self.writer.add_scalar(tag, value, step)
+            self.writer.add_scalar(f"{prefix}/{tag}", value, step)

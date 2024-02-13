@@ -1,3 +1,4 @@
+from functools import wraps
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -7,14 +8,8 @@ import time
 import numpy as np
 from .utils import EarlyStopping, step_lr, Logger
 from .modeling_ofm import OFM
-from transformers import (
-    TrainingArguments,
-    Trainer,
-    Seq2SeqTrainingArguments,
-    Seq2SeqTrainer,
-    DataCollatorForSeq2Seq,
-    EvalPrediction,
-)
+from torch.utils.data import DataLoader
+
 from transformers import TrainingArguments, Trainer
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,6 +40,171 @@ def get_optimizer_and_scheduler(model, lr):
 
     return optimizer, scheduler
 
+
+class TrainingArguments:
+    def __init__(
+        self,
+        output_dir,
+        per_device_train_batch_size,
+        per_device_eval_batch_size,
+        evaluation_strategy,
+        save_strategy,
+        save_total_limit,
+        num_train_epochs,
+        learning_rate,
+        remove_unused_columns,
+        push_to_hub,
+        report_to,
+        label_names,
+        fp16,
+        weight_decay,
+        dataloader_num_workers,
+        local_rank,
+    ):
+        self.output_dir = output_dir
+        self.per_device_train_batch_size = per_device_train_batch_size
+        self.per_device_eval_batch_size = per_device_eval_batch_size
+        self.evaluation_strategy = evaluation_strategy
+        self.save_strategy = save_strategy
+        self.save_total_limit = save_total_limit
+        self.num_train_epochs = num_train_epochs
+        self.learning_rate = learning_rate
+        self.remove_unused_columns = remove_unused_columns
+        self.push_to_hub = push_to_hub
+        self.report_to = report_to
+        self.label_names = label_names
+        self.fp16 = fp16
+        self.weight_decay = weight_decay
+        self.dataloader_num_workers = dataloader_num_workers
+        self.local_rank = local_rank
+
+
+class Trainer:
+    def __init__(
+        self,
+        model,
+        args,
+        data_collator,
+        compute_metrics,
+        train_dataset,
+        eval_dataset,
+        tokenizer,
+        optimizers,
+    ):
+        self.model = model
+        self.args = args
+        self.data_collator = data_collator
+        self.compute_metrics = compute_metrics
+        self.train_dataset = train_dataset
+        self.eval_dataset = eval_dataset
+        self.tokenizer = tokenizer
+        self.optimizer, self.scheduler = optimizers
+        self.logger = Logger(log_dir=os.path.join(args.output_dir, "logs"))
+        self.train_dataloader = self.get_train_dataloader()
+        if self.eval_dataset:
+            self.eval_dataloader = self.get_eval_dataloader()
+        if self.test_dataset:
+            self.test_dataloader = self.get_test_dataloader()
+
+    def get_train_dataloader(self):
+
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.args.per_device_train_batch_size,
+            shuffle=True,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+        )
+
+    def get_eval_dataloader(self):
+
+        return DataLoader(
+            self.eval_dataset,
+            batch_size=self.args.per_device_eval_batch_size,
+            shuffle=False,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+        )
+
+    def get_test_dataloader(self):
+
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.args.per_device_eval_batch_size,
+            shuffle=False,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+        )
+
+    def create_optimizer_and_scheduler(self):
+        self.optimizer = AdamW(self.model.parameters(), lr=self.args.learning_rate)
+        self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda x: 0.975**x)
+
+    def compute_loss(self, outputs, labels):
+        return F.cross_entropy(outputs.logits, labels)
+
+    def training_step(self, batch):
+        self.model.train()
+        outputs = self.model(**batch)
+        loss = self.compute_loss(outputs, batch["labels"])
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+        return loss
+
+    def _compute_metrics(self, eval_preds):
+        if self.compute_metrics is None:
+            return {}
+        return self.compute_metrics(eval_preds)
+
+    def evaluate(self, eval_dataloader):
+        self.model.eval()
+        all_preds = []
+        all_labels = []
+        for batch in eval_dataloader:
+            with torch.no_grad():
+                outputs = self.model(**batch)
+                preds = outputs.logits.argmax(dim=-1)
+                all_preds.append(preds)
+                all_labels.append(batch["labels"])
+        all_preds = torch.cat(all_preds)
+        all_labels = torch.cat(all_labels)
+        metrics = self._compute_metrics(all_preds, all_labels)
+        return metrics
+
+    def distribute_train(self, rank, world_size):
+        setup(rank, world_size)
+        torch.cuda.set_device(rank)
+        self.model = self.model.to(rank)
+        # self.model = nn.parallel.DistributedDataParallel(
+        #     self.model, device_ids=[rank], output_device=rank
+        # )
+        self.train_dataloader = self.get_train_dataloader()
+        self.eval_dataloader = self.get_eval_dataloader()
+        self.test_dataloader = self.get_test_dataloader()
+        self.train()
+        cleanup()
+
+    def train(self):
+        for epoch in range(self.args.num_train_epochs):
+            for step, batch in enumerate(train_dataloader):
+                loss = self.training_step(batch)
+                self.logger.log_metrics(
+                    {"train_loss": loss.item()},
+                    step,
+                    prefix="steps",
+                )
+                if step % 100 == 0:
+                    metrics = self.evaluate(eval_dataloader)
+                    self.logger.log_metrics(
+                        metrics,
+                        step,
+                        prefix="steps",
+                    )
+                    self.save_metrics("eval" + f"-step {step}", metrics)
+        return metrics
+
+
 def ofm_dist_train(
     args,
     model: OFM,
@@ -64,7 +224,8 @@ def ofm_dist_train(
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
 
     # TODO: Wrap summary writer in a context manager
-    writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
+    # writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
+    writer = Logger(log_dir=os.path.join(args.save_dir, "logs"))
     best_acc = 0.0
     best_f1 = 0.0
     # TODO: add training args as an s
@@ -158,25 +319,13 @@ def ofm_dist_train(
             metrics["eval_f1"],
         )
         ds_model.to("cpu")
+        with writer:
+            writer.log_metrics(
+                metrics,
+                steps,
+                prefix="steps",
+            )
 
-        writer.add_scalar(
-            "steps/eval_metric",
-            val_accuracy,
-            steps,
-        )
-        writer.add_scalar(
-            "steps/eval_f1",
-            val_f1_score,
-            steps,
-        )
-
-        writer.add_scalar(
-            "steps/params",
-            ds_model_params,
-            steps,
-        )
-
-        # model.model.to("cpu")
         if val_accuracy > best_acc:
             best_acc = val_accuracy
             model.save_ckpt(os.path.join(args.save_dir, "best_model"))
