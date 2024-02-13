@@ -82,8 +82,8 @@ class TrainingArguments:
 class Trainer:
     def __init__(
         self,
-        model,
-        args,
+        supernet: OFM,
+        args: TrainingArguments,
         data_collator,
         compute_metrics,
         train_dataset,
@@ -91,7 +91,8 @@ class Trainer:
         tokenizer,
         optimizers,
     ):
-        self.model = model
+        self.supernet = supernet
+        self.avtivate_model = None
         self.args = args
         self.data_collator = data_collator
         self.compute_metrics = compute_metrics
@@ -106,7 +107,10 @@ class Trainer:
         if self.test_dataset:
             self.test_dataloader = self.get_test_dataloader()
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     def get_train_dataloader(self):
+        # TODO: remove the unused columns
 
         return DataLoader(
             self.train_dataset,
@@ -137,20 +141,22 @@ class Trainer:
         )
 
     def create_optimizer_and_scheduler(self):
-        self.optimizer = AdamW(self.model.parameters(), lr=self.args.learning_rate)
-        self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda x: 0.975**x)
+        self.optimizer = AdamW(
+            self.activate_model.parameters(), lr=self.args.learning_rate
+        )
+
+        if self.scheduler is None:
+            self.scheduler = LambdaLR(
+                self.optimizer, lr_lambda=lambda x: max(0.1, 0.975**x)
+            )
+        else:
+            self.scheduler.optimizer = self.optimizer
+        # self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda x: 0.975**x)
 
     def compute_loss(self, outputs, labels):
-        return F.cross_entropy(outputs.logits, labels)
+        """returns the loss"""
 
-    def training_step(self, batch):
-        self.model.train()
-        outputs = self.model(**batch)
-        loss = self.compute_loss(outputs, batch["labels"])
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
-        return loss
+        return outputs.loss
 
     def _compute_metrics(self, eval_preds):
         if self.compute_metrics is None:
@@ -158,7 +164,7 @@ class Trainer:
         return self.compute_metrics(eval_preds)
 
     def evaluate(self, eval_dataloader):
-        self.model.eval()
+        self.activate_model.eval()
         all_preds = []
         all_labels = []
         for batch in eval_dataloader:
@@ -170,24 +176,88 @@ class Trainer:
         all_preds = torch.cat(all_preds)
         all_labels = torch.cat(all_labels)
         metrics = self._compute_metrics(all_preds, all_labels)
+        metrics["params"] = self.avtivate_model.config.num_parameters
         return metrics
+
+    def training_step(self, batch):
+        self.activate_model.train()
+        outputs = self.activate_model(**batch)
+        loss = self.compute_loss(outputs, batch["labels"])
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+
+        train_metrics = {
+            "train_loss": loss.item(),
+            "params": self.activate_model.config.num_parameters,
+        }
+        return train_metrics
+
+    def train(self):
+
+        for epoch in range(self.args.num_train_epochs):
+
+            for step, batch in enumerate(train_dataloader):
+                # move batch to device
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                (
+                    self.activate_model,
+                    self.activate_model.config.num_parameters,
+                    self.activate_model.config.arch,
+                ) = self.supernet.random_resource_aware_model()
+
+                self.activate_model.to(self.device)
+
+                self.create_optimizer_and_scheduler()
+
+                # print optimizer LR:
+                print("the current learning rate")
+                print(self.optimizer.param_groups[0]["lr"])
+
+                local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
+
+                train_metrics = self.training_step(batch)
+
+                ds_weights = {k: v.cpu() for k, v in ds_model.state_dict().items()}
+                with torch.no_grad():
+                    for key in ds_weights:
+                        local_grad[key] = local_grad[key] - ds_weights[key]
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps")
+                self.logger.print_metrics(train_metrics, step, prefix="steps")
+                if step % 100 == 0:
+                    metrics = self.evaluate(eval_dataloader)
+                    self.logger.log_metrics(metrics, step, prefix="steps")
+                    self.logger.print_metrics(metrics, step, prefix="steps")
+
+                    self.save_metrics("eval" + f"-step {step}", metrics)
+
+                self.supernet.apply_grad(local_grad)
+                self.supernet.save_ckpt(os.path.join(args.save_dir, "last_model"))
+
+        return metrics
+
+    def distribute_training_step(self, batch):
+        self.activate_model.train()
+        outputs = self.activate_model(**batch)
+        loss = self.compute_loss(outputs, batch["labels"])
+        loss.backward()
+        for param in self.activate_model.parameters():
+            dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+            param.grad.data /= dist.get_world_size()
+        self.optimizer.step()
+        self.scheduler.step()
+        return loss
 
     def distribute_train(self, rank, world_size):
         setup(rank, world_size)
-        torch.cuda.set_device(rank)
-        self.model = self.model.to(rank)
-        # self.model = nn.parallel.DistributedDataParallel(
-        #     self.model, device_ids=[rank], output_device=rank
-        # )
-        self.train_dataloader = self.get_train_dataloader()
-        self.eval_dataloader = self.get_eval_dataloader()
-        self.test_dataloader = self.get_test_dataloader()
-        self.train()
-        cleanup()
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
+        self.activate_model = self.supernet.random_resource_aware_model()
+        self.create_optimizer_and_scheduler()
 
-    def train(self):
         for epoch in range(self.args.num_train_epochs):
-            for step, batch in enumerate(train_dataloader):
+            for step, batch in enumerate(self.train_dataloader):
                 loss = self.training_step(batch)
                 self.logger.log_metrics(
                     {"train_loss": loss.item()},
@@ -202,163 +272,5 @@ class Trainer:
                         prefix="steps",
                     )
                     self.save_metrics("eval" + f"-step {step}", metrics)
-        return metrics
 
-
-def ofm_dist_train(
-    args,
-    model: OFM,
-    train_dataset,
-    val_dataset,
-    test_dataset=None,
-    processor=None,
-    collate_fn=None,
-    compute_metrics=None,
-    training_args=None,
-    rank=-1,
-    world_size=-1,
-):
-    setup(rank, world_size)
-    torch.cuda.set_device(rank)
-
-    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
-
-    # TODO: Wrap summary writer in a context manager
-    # writer = SummaryWriter(os.path.join(args.save_dir, "logs"))
-    writer = Logger(log_dir=os.path.join(args.save_dir, "logs"))
-    best_acc = 0.0
-    best_f1 = 0.0
-    # TODO: add training args as an s
-    training_args = TrainingArguments(
-        output_dir=os.path.join(args.save_dir, "training"),
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        evaluation_strategy="epoch",
-        save_strategy="no",
-        save_total_limit=1,
-        num_train_epochs=args.num_local_epochs,
-        learning_rate=args.lr,
-        remove_unused_columns=False,
-        push_to_hub=False,
-        report_to="none",
-        label_names=["labels"],
-        fp16=args.fp16,
-        weight_decay=1e-4,
-        dataloader_num_workers=8,
-        # load_best_model_at_end=True,
-        local_rank=rank,
-    )
-
-    steps = 0
-
-    train_dataset = train_dataset.shuffle()
-    # train_dataset.select(range(1000))
-
-    if rank == 0:
-        ds_model = copy.deepcopy(model.model)
-        ds_model_params = model.total_params
-    elif rank == 1:
-        (
-            ds_model,
-            ds_model_params,
-            arc_config,
-        ) = model.smallest_model()
-    else:
-        (
-            ds_model,
-            ds_model_params,
-            arc_config,
-        ) = model.random_resource_aware_model()
-
-    avg_params += ds_model_params
-
-    local_grad = {k: v.cpu() for k, v in ds_model.state_dict().items()}
-
-    print("Training on {} parameters".format(ds_model_params))
-    # random sample 5k for evaluation
-    val_indices = np.random.choice(
-        list(range(len(val_dataset))), size=args.epoch_eval_size, replace=False
-    )
-    trainer = Trainer(
-        model=ds_model,
-        args=training_args,
-        data_collator=collate_fn,
-        compute_metrics=compute_metrics,
-        train_dataset=train_dataset.select(mini_shard_idx),
-        eval_dataset=val_dataset.select(val_indices),
-        tokenizer=processor,
-        optimizers=get_optimizer_and_scheduler(ds_model, lr),
-    )
-    train_results = trainer.train()
-
-    epoch_train_loss += train_results.metrics["train_loss"]
-
-    ds_weights = {k: v.cpu() for k, v in ds_model.state_dict().items()}
-    import torch
-
-    with torch.no_grad():
-        for key in ds_weights:
-            local_grad[key] = local_grad[key] - ds_weights[key]
-
-    # model.grad_accumulate(local_grad, alpha=len(mini_shard_idx))
-    model.apply_grad(local_grad)
-
-    if (steps % args.log_interval == 0) or (steps % args.num_shards == 0):
-        # if False:
-        # Evaluate the model
-
-        print("*" * 20 + "Evaluating in train step {}".format(steps) + "*" * 20)
-
-        ds_model.cuda()
-        metrics = trainer.evaluate(val_dataset)
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval" + f"-step {steps}", metrics)
-
-        val_accuracy, val_f1_score = (
-            metrics["eval_metric"],
-            metrics["eval_f1"],
-        )
-        ds_model.to("cpu")
-        with writer:
-            writer.log_metrics(
-                metrics,
-                steps,
-                prefix="steps",
-            )
-
-        if val_accuracy > best_acc:
-            best_acc = val_accuracy
-            model.save_ckpt(os.path.join(args.save_dir, "best_model"))
-        if val_f1_score > best_f1:
-            best_f1 = val_f1_score
-        writer.add_scalar(
-            "global/best_metric",
-            best_acc,
-            steps,
-        )
-        writer.add_scalar(
-            "global/best_f1",
-            best_f1,
-            steps,
-        )
-
-        print(
-            f"Best validation accuracy: {best_acc} \nBest validation f1: {best_f1}  \nDownsized model size: {ds_model_params}"
-        )
-        print("*" * 20 + "Evaluation finished" + "*" * 20)
-
-        if test_dataset:
-            metrics = trainer.evaluate(test_dataset, metric_key_prefix="test")
-            trainer.log_metrics("test", metrics)
-            trainer.save_metrics("test", metrics)
-
-        if steps % args.num_shards == 0:
-            early_stopping(val_f1_score)
-
-        # Apply the aggregated and normalized gradient to the full-size model
-        # model.apply_accumulate_grad(args.grad_beta)
-
-    model.save_ckpt(os.path.join(args.save_dir, "last_model"))
-    # if args.push_to_hub:
-    #     model.model.push_to_hub(repo_name=args.save_dir.split("/")[-1])
-    return model
+        cleanup()
