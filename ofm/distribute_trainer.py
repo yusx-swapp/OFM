@@ -47,26 +47,21 @@ class TrainingArguments:
         output_dir,
         per_device_train_batch_size,
         per_device_eval_batch_size,
-        evaluation_strategy,
-        save_strategy,
-        save_total_limit,
         num_train_epochs,
         learning_rate,
-        remove_unused_columns,
-        push_to_hub,
-        report_to,
-        label_names,
-        fp16,
-        weight_decay,
-        dataloader_num_workers,
-        local_rank,
+        remove_unused_columns=False,
+        push_to_hub=None,
+        report_to=None,
+        label_names=None,
+        fp16=False,
+        weight_decay=0.01,
+        dataloader_num_workers=8,
+        local_rank=-1,
+        log_interval=100,
     ):
         self.output_dir = output_dir
         self.per_device_train_batch_size = per_device_train_batch_size
         self.per_device_eval_batch_size = per_device_eval_batch_size
-        self.evaluation_strategy = evaluation_strategy
-        self.save_strategy = save_strategy
-        self.save_total_limit = save_total_limit
         self.num_train_epochs = num_train_epochs
         self.learning_rate = learning_rate
         self.remove_unused_columns = remove_unused_columns
@@ -77,6 +72,7 @@ class TrainingArguments:
         self.weight_decay = weight_decay
         self.dataloader_num_workers = dataloader_num_workers
         self.local_rank = local_rank
+        self.log_interval = log_interval
 
 
 class Trainer:
@@ -142,7 +138,7 @@ class Trainer:
 
     def create_optimizer_and_scheduler(self):
         self.optimizer = AdamW(
-            self.activate_model.parameters(), lr=self.args.learning_rate
+            self.activate_model.parameters(), lr=self.args.learning_rate, weight_decay=*args.weight_decay
         )
 
         if self.scheduler is None:
