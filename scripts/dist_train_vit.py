@@ -22,12 +22,12 @@ def compute_metrics(eval_pred):
     f1_metric = evaluate.load("f1")
 
     accuracy = accuracy_metric.compute(
-        predictions=np.argmax(eval_pred.predictions, axis=1),
-        references=eval_pred.label_ids,
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        references=eval_pred["label_ids"],
     )
     f1 = f1_metric.compute(
-        predictions=np.argmax(eval_pred.predictions, axis=1),
-        references=eval_pred.label_ids,
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        references=eval_pred["label_ids"],
         average="weighted",
     )
 
@@ -137,16 +137,9 @@ def main(args):
             # gradient_accumulation_steps=args.gradient_accumulation_steps,
             num_train_epochs=args.epochs,
             learning_rate=args.lr,
-            weight_decay=args.weight_decay,
-            logging_dir=args.save_dir,
-            logging_steps=args.logging_steps,
-            save_steps=args.save_steps,
-            eval_steps=args.eval_steps,
-            evaluation_strategy="steps",
             report_to=[],
-            local_rank=args.local_rank,
             fp16=args.fp16,
-            dataloader_num_workers=args.num_workers,
+            dataloader_num_workers=16,
             log_interval=args.log_interval,
         ),
         data_collator=collate_fn,
