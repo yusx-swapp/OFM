@@ -6,8 +6,9 @@ import functools
 import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
-from ofm import OFM, ofm_train
-from ofm.distribute_trainer import TrainingArguments, Trainer
+from ofm.distribute_trainer import TrainingArguments, DistributedTrainer, Trainer
+import torch.multiprocessing as mp
+from ofm import OFM
 
 
 def compute_metrics(eval_pred):
@@ -60,7 +61,7 @@ def transform(example_batch, processor):
     return inputs
 
 
-def main(args):
+def main(rank, world_size, args):
     if args.model == "vit":
         model_name = "google/vit-base-patch16-224"
         processor_name = "google/vit-base-patch16-224"
@@ -73,7 +74,7 @@ def main(args):
     if args.huggingface_token:
         from huggingface_hub import login
 
-        login(args.huggingface_token)
+        login(args.huggingface_token, add_to_git_credential=True)
 
     dataset = load_dataset(
         args.dataset, cache_dir=args.cache_dir, trust_remote_code=True
@@ -103,6 +104,10 @@ def main(args):
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
+    dataset.set_format(type="torch", columns=["img", "label"])
+
+    # prepared_ds = dataset.map(lambda examples: {"img": processor(examples["img"])})
+    # prepared_ds.set_format(type="torch", columns=["image", "label"])
 
     # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
@@ -128,7 +133,7 @@ def main(args):
 
     model = OFM(model.to("cpu"), elastic_config)
 
-    trainer = Trainer(
+    trainer = DistributedTrainer(
         model,
         TrainingArguments(
             output_dir=args.save_dir,
@@ -139,7 +144,7 @@ def main(args):
             learning_rate=args.lr,
             report_to=[],
             fp16=args.fp16,
-            dataloader_num_workers=16,
+            dataloader_num_workers=8,
             log_interval=args.log_interval,
         ),
         data_collator=collate_fn,
@@ -148,6 +153,8 @@ def main(args):
         eval_dataset=prepared_ds["validation"],
         tokenizer=processor,
         optimizers=(None, None),
+        local_rank=rank,
+        world_size=world_size,
     )
     metrics = trainer.train()
 
@@ -156,6 +163,8 @@ def main(args):
 
 if __name__ == "__main__":
     args = arguments()
-    main(args)
 
+    world_size = torch.cuda.device_count()
+    # main(0, world_size, args)
+    mp.spawn(main, args=(world_size, args), nprocs=world_size, join=True)
 # python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json

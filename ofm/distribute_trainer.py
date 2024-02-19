@@ -10,21 +10,13 @@ from .utils import EarlyStopping, step_lr, Logger
 from .modeling_ofm import OFM
 from torch.utils.data import DataLoader
 
-from transformers import TrainingArguments, Trainer
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
-
-def setup(rank, world_size):
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-
-
-def cleanup():
-    dist.destroy_process_group()
+from .trainer import Trainer, TrainingArguments
 
 
 def get_optimizer_and_scheduler(model, lr):
@@ -41,44 +33,7 @@ def get_optimizer_and_scheduler(model, lr):
     return optimizer, scheduler
 
 
-class TrainingArguments:
-    def __init__(
-        self,
-        output_dir,
-        per_device_train_batch_size,
-        per_device_eval_batch_size,
-        num_train_epochs,
-        learning_rate,
-        remove_unused_columns=False,
-        push_to_hub=None,
-        report_to=None,
-        label_names=None,
-        fp16=False,
-        weight_decay=0.01,
-        dataloader_num_workers=8,
-        local_rank=-1,
-        log_interval=100,
-        eval_steps=1000,
-    ):
-        self.output_dir = output_dir
-        self.per_device_train_batch_size = per_device_train_batch_size
-        self.per_device_eval_batch_size = per_device_eval_batch_size
-        self.num_train_epochs = num_train_epochs
-        self.learning_rate = learning_rate
-        self.remove_unused_columns = remove_unused_columns
-        self.push_to_hub = push_to_hub
-        self.report_to = report_to
-        self.label_names = label_names
-        self.fp16 = fp16
-        self.weight_decay = weight_decay
-        self.dataloader_num_workers = dataloader_num_workers
-        self.local_rank = local_rank
-        self.log_interval = log_interval
-        self.eval_steps = eval_steps
-        # TODO: add eval steps.
-
-
-class Trainer:
+class DistributedTrainer(Trainer):
     def __init__(
         self,
         supernet: OFM,
@@ -90,112 +45,102 @@ class Trainer:
         test_dataset=None,
         tokenizer=None,
         optimizers=None,
+        local_rank=-1,
+        world_size=-1,
     ):
-        self.supernet = supernet
-        self.activate_model = None
-        self.args = args
-        self.data_collator = data_collator
-        self.compute_metrics = compute_metrics
-        self.train_dataset = train_dataset
-        self.eval_dataset = eval_dataset
-        self.test_dataset = test_dataset
-        self.tokenizer = tokenizer
-        self.optimizer, self.scheduler = optimizers
-        self.logger = Logger(log_dir=os.path.join(args.output_dir, "logs"))
-        self.train_dataloader = self.get_train_dataloader()
-        if self.eval_dataset:
-            self.eval_dataloader = self.get_eval_dataloader()
-        if self.test_dataset:
-            self.test_dataloader = self.get_test_dataloader()
+        self.local_rank = local_rank
+        self.world_size = world_size
+        self.setup(local_rank, world_size)
+        super().__init__(
+            supernet,
+            args,
+            data_collator,
+            compute_metrics,
+            train_dataset,
+            eval_dataset,
+            test_dataset,
+            tokenizer,
+            optimizers,
+        )
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def setup(self, rank, world_size):
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = "12355"
+        # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
+        dist.init_process_group("nccl", rank=rank, world_size=world_size)
+        self.device = torch.device("cuda:{}".format(rank))
+        print(self.device)
+        print(f"Rank {rank} initialized, world size: {world_size}")
 
+    @staticmethod
+    def cleanup():
+        dist.destroy_process_group()
+
+    @wraps(Trainer.get_train_dataloader)
     def get_train_dataloader(self):
-        # TODO: remove the unused columns
-
         return DataLoader(
             self.train_dataset,
             batch_size=self.args.per_device_train_batch_size,
-            shuffle=True,
             collate_fn=self.data_collator,
-            num_workers=self.args.dataloader_num_workers,
+            # num_workers=self.args.dataloader_num_workers,
+            # pin_memory=True,
+            sampler=torch.utils.data.distributed.DistributedSampler(
+                self.train_dataset, shuffle=True
+            ),
         )
+        # train_dataloader = DataLoader(
+        #     train_ds,
+        #     batch_size=config.batch_size,
+        #     shuffle=False,
+        #     sampler=DistributedSampler(train_ds, shuffle=True),
+        # )
 
+    @wraps(Trainer.get_eval_dataloader)
     def get_eval_dataloader(self):
-
         return DataLoader(
             self.eval_dataset,
             batch_size=self.args.per_device_eval_batch_size,
-            shuffle=False,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,
+            pin_memory=True,
+            sampler=torch.utils.data.distributed.DistributedSampler(
+                self.eval_dataset, num_replicas=self.world_size, rank=self.local_rank
+            ),
         )
 
+    @wraps(Trainer.get_test_dataloader)
     def get_test_dataloader(self):
-
         return DataLoader(
             self.test_dataset,
             batch_size=self.args.per_device_eval_batch_size,
-            shuffle=False,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,
+            pin_memory=True,
+            sampler=torch.utils.data.distributed.DistributedSampler(
+                self.test_dataset, num_replicas=self.world_size, rank=self.local_rank
+            ),
         )
 
-    def create_optimizer_and_scheduler(self):
-        # TODO: is my optimizer and schedular passing by argument, skip this step
-        self.optimizer = AdamW(
-            self.activate_model.parameters(),
-            lr=self.args.learning_rate,
-            weight_decay=self.args.weight_decay,
-        )
-
-        if self.scheduler is None:
-            self.scheduler = LambdaLR(
-                self.optimizer, lr_lambda=lambda x: max(0.1, 0.975**x)
-            )
-        else:
-            self.scheduler.optimizer = self.optimizer
-        # self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda x: 0.975**x)
-
-    def compute_loss(self, outputs, labels):
-        """returns the loss"""
-        # outputs.loss
-        return F.cross_entropy(outputs.logits, labels)
-
-    def _compute_metrics(self, eval_preds):
-        if self.compute_metrics is None:
-            return {}
-        return self.compute_metrics(eval_preds)
-
-    def evaluate(self, eval_dataloader):
-        self.activate_model.eval()
-        all_preds = []
-        all_labels = []
-        eval_preds = {}
-        for batch in eval_dataloader:
-            with torch.no_grad():
-                batch = {k: v.to(self.device) for k, v in batch.items()}
-                outputs = self.activate_model(**batch)
-                # print(outputs.predictions)
-                # eval_preds = self.activate_model(**batch)
-                preds = outputs.logits.detach().cpu()
-                all_preds.append(preds)
-                all_labels.append(batch["labels"].detach().cpu())
-        batch.clear()
-        all_preds = torch.cat(all_preds)
-        all_labels = torch.cat(all_labels)
-        eval_preds = {"predictions": all_preds, "label_ids": all_labels}
-        metrics = self._compute_metrics(eval_preds)
-        metrics["params"] = self.activate_model.config.num_parameters
-        return metrics
-
+    @wraps(Trainer.training_step)
     def training_step(self, batch):
         self.activate_model.train()
+
+        self.optimizer.zero_grad()
+        self.scheduler.step()
+        # print optimizer LR:
+        print("the current learning rate")
+        current_lrs = [group["lr"] for group in self.optimizer.param_groups]
+        print(current_lrs)
+        print(self.optimizer.param_groups[0]["lr"])
         outputs = self.activate_model(**batch)
         loss = self.compute_loss(outputs, batch["labels"])
         loss.backward()
+        for param in self.activate_model.parameters():
+
+            dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+            param.grad.data /= self.world_size
+
         self.optimizer.step()
-        self.scheduler.step()
 
         train_metrics = {
             "train_loss": loss.item(),
@@ -203,13 +148,14 @@ class Trainer:
         }
         return train_metrics
 
+    @wraps(Trainer.train)
     def train(self):
 
         for epoch in range(self.args.num_train_epochs):
 
-            # TODO: add tqdm
             for step, batch in enumerate(self.train_dataloader):
-                # for step, batch in enumerate(self.train_dataloader):
+                print(batch["labels"].shape)
+                print(batch["pixel_values"].shape)
                 # move batch to device
                 batch = {k: v.to(self.device) for k, v in batch.items()}
 
@@ -227,14 +173,9 @@ class Trainer:
 
                 self.create_optimizer_and_scheduler()
 
-                # print optimizer LR:
-                print("the current learning rate")
-                print(self.optimizer.param_groups[0]["lr"])
-
                 local_grad = {
                     k: v.cpu() for k, v in self.activate_model.state_dict().items()
                 }
-
                 train_metrics = self.training_step(batch)
 
                 ds_weights = {
@@ -246,53 +187,17 @@ class Trainer:
 
                 self.logger.log_metrics(train_metrics, step, prefix="steps")
                 self.logger.print_metrics(train_metrics, step, prefix="steps")
-                if step % 100 == 0:
+
+                if step % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
                     self.logger.log_metrics(metrics, step, prefix="steps")
                     self.logger.print_metrics(metrics, step, prefix="steps")
 
                     # self.lsave_metrics("eval" + f"-step {step}", metrics)
-
                 self.supernet.apply_grad(local_grad)
                 self.supernet.save_ckpt(
                     os.path.join(self.args.output_dir, "last_model")
                 )
 
+        self.cleanup()
         return metrics
-
-    def distribute_training_step(self, batch):
-        self.activate_model.train()
-        outputs = self.activate_model(**batch)
-        loss = self.compute_loss(outputs, batch["labels"])
-        loss.backward()
-        for param in self.activate_model.parameters():
-            dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
-            param.grad.data /= dist.get_world_size()
-        self.optimizer.step()
-        self.scheduler.step()
-        return loss
-
-    def distribute_train(self, rank, world_size):
-        setup(rank, world_size)
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
-        self.activate_model = self.supernet.random_resource_aware_model()
-        self.create_optimizer_and_scheduler()
-
-        for epoch in range(self.args.num_train_epochs):
-            for step, batch in enumerate(self.train_dataloader):
-                loss = self.training_step(batch)
-                self.logger.log_metrics(
-                    {"train_loss": loss.item()},
-                    step,
-                    prefix="steps",
-                )
-                if step % 100 == 0:
-                    metrics = self.evaluate(eval_dataloader)
-                    self.logger.log_metrics(
-                        metrics,
-                        step,
-                        prefix="steps",
-                    )
-                    self.save_metrics("eval" + f"-step {step}", metrics)
-
-        cleanup()
