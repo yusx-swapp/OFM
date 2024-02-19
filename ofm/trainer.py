@@ -127,7 +127,7 @@ class Trainer:
 
     def compute_loss(self, outputs, labels):
         """returns the loss"""
-        
+
         loss = F.cross_entropy(outputs.logits, labels)
         # loss = outputs.loss
 

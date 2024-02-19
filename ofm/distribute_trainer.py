@@ -63,13 +63,14 @@ class DistributedTrainer(Trainer):
             optimizers,
         )
 
+        self.device = torch.device("cuda:{}".format(self.local_rank))
+
     def setup(self, rank, world_size):
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "12355"
+        # os.environ["MASTER_ADDR"] = "localhost"
+        # os.environ["MASTER_PORT"] = "12355"
         # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
         dist.init_process_group("nccl", rank=rank, world_size=world_size)
-        self.device = torch.device("cuda:{}".format(rank))
-        print(self.device)
+        # dist.init_process_group(rank=rank, world_size=world_size)
         print(f"Rank {rank} initialized, world size: {world_size}")
 
     @staticmethod
@@ -121,6 +122,31 @@ class DistributedTrainer(Trainer):
             ),
         )
 
+    @wraps(Trainer.evaluate)
+    def evaluate(self, eval_dataloader):
+        self.activate_model.eval()
+        all_preds = []
+        all_labels = []
+        eval_preds = {}
+        for batch in eval_dataloader:
+            with torch.no_grad():
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+                outputs = self.activate_model(**batch)
+                # print(outputs.predictions)
+                # eval_preds = self.activate_model(**batch)
+                preds = outputs.logits.detach().cpu()
+                all_preds.append(preds)
+                all_labels.append(batch["labels"].detach().cpu())
+        batch.clear()
+        all_preds = torch.cat(all_preds)
+        all_labels = torch.cat(all_labels)
+        # dist.all_reduce(all_preds, op=dist.ReduceOp.SUM)
+        # dist.all_reduce(all_labels, op=dist.ReduceOp.SUM)
+        eval_preds = {"predictions": all_preds, "label_ids": all_labels}
+        metrics = self._compute_metrics(eval_preds)
+        metrics["params"] = self.activate_model.config.num_parameters
+        return metrics
+
     @wraps(Trainer.training_step)
     def training_step(self, batch):
         self.activate_model.train()
@@ -135,13 +161,14 @@ class DistributedTrainer(Trainer):
         outputs = self.activate_model(**batch)
         loss = self.compute_loss(outputs, batch["labels"])
         loss.backward()
+        print(f"satrt all reduce {self.local_rank}")
         for param in self.activate_model.parameters():
 
             dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
             param.grad.data /= self.world_size
 
         self.optimizer.step()
-
+        dist.all_reduce(loss.data, op=dist.ReduceOp.SUM)
         train_metrics = {
             "train_loss": loss.item(),
             "params": self.activate_model.config.num_parameters,
@@ -154,8 +181,8 @@ class DistributedTrainer(Trainer):
         for epoch in range(self.args.num_train_epochs):
 
             for step, batch in enumerate(self.train_dataloader):
-                print(batch["labels"].shape)
-                print(batch["pixel_values"].shape)
+                # print(batch["labels"].shape)
+                # print(batch["pixel_values"].shape)
                 # move batch to device
                 batch = {k: v.to(self.device) for k, v in batch.items()}
 
