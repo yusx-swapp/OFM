@@ -74,7 +74,7 @@ ds_model, params, config = supernet.random_resource_aware_model()
 print("subnetwork params",params)
 ```
 
-## Train your own super-FMs
+## Train your own super-FMs (Single Node)
 
 ### Scripts for train Super-ViT
 
@@ -105,6 +105,22 @@ Set the arguments ` --huggingface_token` to your huggingface token, which should
 
 ```bash
 python3 scripts/train_vit.py --model vit \
+--save_dir 'your_dir'  \
+--dataset imagenet-1k \
+--num_shards 500 \
+--lr 2e-5 \
+--batch_size 152 \
+--log_interval 500 \
+--huggingface_token "your-token-here" \
+--elastic_config scripts/elastic_space.json
+```
+
+### Distributed Training (Multiple Nodes)
+
+If you have multiple GPUs, you can use the following command to train the super-FM with distributed training:
+
+```bash
+torchrun --nproc_per_node="your number of gpus" scripts/dist_train_vit.py --model vit \
 --save_dir 'your_dir'  \
 --dataset imagenet-1k \
 --num_shards 500 \
@@ -153,9 +169,15 @@ anonymous
 If you find our work is helpful, please kindly support our efforts by citing our paper:
 
 ```
+
 under review
+
 ```
 
 ## Acknowledgement
 
 The experiments of this work is sponsored by **[anonymous institution]** and **[anonymous institution]**.
+
+```
+
+```
