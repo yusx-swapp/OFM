@@ -149,6 +149,7 @@ class DistributedTrainer(Trainer):
 
     @wraps(Trainer.training_step)
     def training_step(self, batch):
+        print(batch["pixel_values"])
         self.activate_model.train()
 
         self.optimizer.zero_grad()

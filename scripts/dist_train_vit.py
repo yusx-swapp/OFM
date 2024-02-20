@@ -104,12 +104,8 @@ def main(rank, world_size, args):
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
-    dataset.set_format(type="torch", columns=["img", "label"])
+    print(prepared_ds["train"][0])
 
-    # prepared_ds = dataset.map(lambda examples: {"img": processor(examples["img"])})
-    # prepared_ds.set_format(type="torch", columns=["image", "label"])
-
-    # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
         ckpt_path = args.resume_ckpt
         elastic_config = (
