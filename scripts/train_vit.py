@@ -166,5 +166,3 @@ def main(args):
 if __name__ == "__main__":
     args = arguments()
     main(args)
-
-# python scripts/train_vit.py --model vit --save_dir ckpts/test  --dataset cifar10 --num_shards 500 --lr 2e-5 --batch_size 64 --log_interval 100 --huggingface_token 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  --elastic_config scripts/elastic_space.json --cache_dir /work/LAS/jannesar-lab/sixing/.cache --log_interval 1
