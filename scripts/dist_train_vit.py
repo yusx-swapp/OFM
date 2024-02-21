@@ -61,13 +61,14 @@ def transform(example_batch, processor):
     return inputs
 
 
-def main(rank, world_size, args):
+# def main(rank, world_size, args):
+def main(args):
     if args.model == "vit":
-        model_name = "google/vit-base-patch16-224"
-        processor_name = "google/vit-base-patch16-224"
+        model_name = "google/vit-base-patch16-224-in21k"
+        processor_name = "google/vit-base-patch16-224-in21k"
     elif args.model == "vit-large":
-        model_name = "google/vit-large-patch16-224"
-        processor_name = "google/vit-large-patch16-224"
+        model_name = "google/vit-large-patch16-224-in21k"
+        processor_name = "google/vit-large-patch16-224-in21k"
 
     # load data and preprocess
 
@@ -149,8 +150,6 @@ def main(rank, world_size, args):
         eval_dataset=prepared_ds["validation"],
         tokenizer=processor,
         optimizers=(None, None),
-        local_rank=rank,
-        world_size=world_size,
     )
     metrics = trainer.train()
 
@@ -161,5 +160,7 @@ if __name__ == "__main__":
     args = arguments()
 
     world_size = torch.cuda.device_count()
+    main(args)
     # main(0, world_size, args)
-    mp.spawn(main, args=(world_size, args), nprocs=world_size, join=True)
+    # mp.spawn(main, args=(world_size, args), nprocs=world_size, join=True)
+# python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json

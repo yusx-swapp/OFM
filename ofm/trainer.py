@@ -212,12 +212,12 @@ class Trainer:
                     for key in ds_weights:
                         local_grad[key] = local_grad[key] - ds_weights[key]
 
-                self.logger.log_metrics(train_metrics, step, prefix="steps")
-                self.logger.print_metrics(train_metrics, step, prefix="steps")
+                self.logger.log_metrics(train_metrics, step, prefix="steps/supernet")
+                self.logger.print_metrics(train_metrics, step, prefix="steps/supernet")
                 if step % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    self.logger.log_metrics(metrics, step, prefix="steps")
-                    self.logger.print_metrics(metrics, prefix="steps")
+                    self.logger.log_metrics(metrics, step, prefix="steps/supernet")
+                    self.logger.print_metrics(metrics, prefix="steps/supernet")
 
                     # self.lsave_metrics("eval" + f"-step {step}", metrics)
 
@@ -248,12 +248,12 @@ class Trainer:
                     for key in ds_weights:
                         local_grad[key] = local_grad[key] - ds_weights[key]
 
-                self.logger.log_metrics(train_metrics, step, prefix="steps-subnet")
-                self.logger.print_metrics(train_metrics, prefix="steps-subnet")
+                self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/subnet")
                 if step % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    self.logger.log_metrics(metrics, step, prefix="steps-subnet")
-                    self.logger.print_metrics(metrics, prefix="steps-subnet")
+                    self.logger.log_metrics(metrics, step, prefix="steps/subnet")
+                    self.logger.print_metrics(metrics, prefix="steps/subnet")
 
                     # self.lsave_metrics("eval" + f"-step {step}", metrics)
 

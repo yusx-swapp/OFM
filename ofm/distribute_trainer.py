@@ -45,12 +45,9 @@ class DistributedTrainer(Trainer):
         test_dataset=None,
         tokenizer=None,
         optimizers=None,
-        local_rank=-1,
-        world_size=-1,
     ):
-        self.local_rank = local_rank
-        self.world_size = world_size
-        self.setup(local_rank, world_size)
+
+        self.setup()
         super().__init__(
             supernet,
             args,
@@ -65,13 +62,18 @@ class DistributedTrainer(Trainer):
 
         self.device = torch.device("cuda:{}".format(self.local_rank))
 
-    def setup(self, rank, world_size):
-        # os.environ["MASTER_ADDR"] = "localhost"
-        # os.environ["MASTER_PORT"] = "12355"
-        # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
-        dist.init_process_group("nccl", rank=rank, world_size=world_size)
-        # dist.init_process_group(rank=rank, world_size=world_size)
-        print(f"Rank {rank} initialized, world size: {world_size}")
+    def setup(self):
+        dist.init_process_group(backend="nccl")
+
+        # self.local_rank = dist.get_rank()
+        self.local_rank = int(os.environ["RANK"])
+
+        self.world_size = dist.get_world_size()
+
+        # dist.init_process_group(
+        #     "nccl", rank=self.local_rank, world_size=self.world_size
+        # )
+        print(f"Rank {self.local_rank} initialized, world size: {self.world_size}")
 
     @staticmethod
     def cleanup():
@@ -132,16 +134,12 @@ class DistributedTrainer(Trainer):
             with torch.no_grad():
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 outputs = self.activate_model(**batch)
-                # print(outputs.predictions)
-                # eval_preds = self.activate_model(**batch)
                 preds = outputs.logits.detach().cpu()
                 all_preds.append(preds)
                 all_labels.append(batch["labels"].detach().cpu())
         batch.clear()
         all_preds = torch.cat(all_preds)
         all_labels = torch.cat(all_labels)
-        # dist.all_reduce(all_preds, op=dist.ReduceOp.SUM)
-        # dist.all_reduce(all_labels, op=dist.ReduceOp.SUM)
         eval_preds = {"predictions": all_preds, "label_ids": all_labels}
         metrics = self._compute_metrics(eval_preds)
         metrics["params"] = self.activate_model.config.num_parameters
@@ -149,22 +147,18 @@ class DistributedTrainer(Trainer):
 
     @wraps(Trainer.training_step)
     def training_step(self, batch):
-        print(batch["pixel_values"])
         self.activate_model.train()
 
         self.optimizer.zero_grad()
         self.scheduler.step()
-        # print optimizer LR:
-        print("the current learning rate")
-        current_lrs = [group["lr"] for group in self.optimizer.param_groups]
-        print(current_lrs)
-        print(self.optimizer.param_groups[0]["lr"])
         outputs = self.activate_model(**batch)
         loss = self.compute_loss(outputs, batch["labels"])
         loss.backward()
-        print(f"satrt all reduce {self.local_rank}")
-        for param in self.activate_model.parameters():
 
+        if self.local_rank == 0:
+            print(f"satrt all reduce {self.local_rank}")
+
+        for param in self.activate_model.parameters():
             dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
             param.grad.data /= self.world_size
 
@@ -193,12 +187,11 @@ class DistributedTrainer(Trainer):
                     self.activate_model.config.arch,
                 ) = (
                     copy.deepcopy(self.supernet.model),
-                    100,
+                    self.supernet.total_params,
                     {},
                 )
 
                 self.activate_model.to(self.device)
-
                 self.create_optimizer_and_scheduler()
 
                 local_grad = {
@@ -213,16 +206,24 @@ class DistributedTrainer(Trainer):
                     for key in ds_weights:
                         local_grad[key] = local_grad[key] - ds_weights[key]
 
-                self.logger.log_metrics(train_metrics, step, prefix="steps")
-                self.logger.print_metrics(train_metrics, step, prefix="steps")
-
+                if self.local_rank == 0:
+                    self.logger.log_metrics(
+                        train_metrics, step, prefix="steps/supernet"
+                    )
+                    self.logger.print_metrics(
+                        train_metrics, step, prefix="steps/supernet"
+                    )
                 if step % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    self.logger.log_metrics(metrics, step, prefix="steps")
-                    self.logger.print_metrics(metrics, step, prefix="steps")
 
-                    # self.lsave_metrics("eval" + f"-step {step}", metrics)
+                    if self.local_rank == 0:
+                        self.logger.log_metrics(metrics, step, prefix="steps/supernet")
+                        self.logger.print_metrics(metrics, prefix="steps/supernet")
+
                 self.supernet.apply_grad(local_grad)
+
+                # soft_labels = self.activate_model(**batch).logits
+
                 self.supernet.save_ckpt(
                     os.path.join(self.args.output_dir, "last_model")
                 )

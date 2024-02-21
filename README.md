@@ -120,7 +120,7 @@ python3 scripts/train_vit.py --model vit \
 If you have multiple GPUs, you can use the following command to train the super-FM with distributed training:
 
 ```bash
-torchrun --nproc_per_node=1 --nnodes=1 scripts/dist_train_vit.py --model vit \
+torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/dist_train_vit.py --model vit \
 --save_dir 'your_dir'  \
 --dataset imagenet-1k \
 --num_shards 500 \
