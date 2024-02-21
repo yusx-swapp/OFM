@@ -411,9 +411,9 @@ def sam_module_handler(model, arc_config):
         new_config.mlp_dim = arc["inter_hidden"]
         new_attention_layer = SamVisionAttention(
             config=new_config,
-            window_size=new_config.window_size
-            if i not in new_config.global_attn_indexes
-            else 0,
+            window_size=(
+                new_config.window_size if i not in new_config.global_attn_indexes else 0
+            ),
         )
 
         new_mlp = SamMLPBlock(config=new_config)

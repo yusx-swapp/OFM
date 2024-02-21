@@ -2,6 +2,7 @@
 One Foundation Model Fits All: Single-stage Foundation Model Training with Zero-shot Deployment
 """
 
+import copy
 import os
 from typing import Any
 import torch
@@ -87,6 +88,9 @@ class OFM:
         )
         subnetwork, params = self.resource_aware_model(arc_config)
         return subnetwork, params, arc_config
+
+    def largest_model(self):
+        return copy.deepcopy(self.model), self.total_params, {}
 
     def resource_aware_model(self, arc_config):
         if "bert" == self.model.config.model_type.lower():
