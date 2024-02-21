@@ -6,7 +6,7 @@ import functools
 import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
-from ofm.distribute_trainer import TrainingArguments, DistributedTrainer, Trainer
+from ofm.distribute_trainer import TrainingArguments, DistributedTrainer
 import torch.multiprocessing as mp
 from ofm import OFM
 
@@ -104,7 +104,7 @@ def main(rank, world_size, args):
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
-    print(prepared_ds["train"][0])
+    # print(prepared_ds["train"][0])
 
     if args.resume_ckpt:
         ckpt_path = args.resume_ckpt
