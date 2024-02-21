@@ -7,6 +7,7 @@ import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
 from ofm import OFM, ofm_train
+from ofm.trainer import TrainingArguments, Trainer
 
 
 def compute_metrics(eval_pred):
@@ -21,12 +22,12 @@ def compute_metrics(eval_pred):
     f1_metric = evaluate.load("f1")
 
     accuracy = accuracy_metric.compute(
-        predictions=np.argmax(eval_pred.predictions, axis=1),
-        references=eval_pred.label_ids,
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        references=eval_pred["label_ids"],
     )
     f1 = f1_metric.compute(
-        predictions=np.argmax(eval_pred.predictions, axis=1),
-        references=eval_pred.label_ids,
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        references=eval_pred["label_ids"],
         average="weighted",
     )
 
@@ -61,10 +62,10 @@ def transform(example_batch, processor):
 
 def main(args):
     if args.model == "vit":
-        model_name = "google/vit-base-patch16-224"
+        model_name = "google/vit-base-patch16-224-in21k"
         processor_name = "google/vit-base-patch16-224"
     elif args.model == "vit-large":
-        model_name = "google/vit-large-patch16-224"
+        model_name = "google/vit-large-patch16-224-in21k"
         processor_name = "google/vit-large-patch16-224"
 
     # load data and preprocess
@@ -127,15 +128,37 @@ def main(args):
 
     model = OFM(model.to("cpu"), elastic_config)
 
-    model = ofm_train(
-        args,
+    # model = ofm_train(
+    #     args,
+    #     model,
+    #     prepared_ds["train"],
+    #     prepared_ds["validation"],
+    #     processor=processor,
+    #     collate_fn=collate_fn,
+    #     compute_metrics=compute_metrics,
+    # )
+
+    trainer = Trainer(
         model,
-        prepared_ds["train"],
-        prepared_ds["validation"],
-        processor=processor,
-        collate_fn=collate_fn,
+        TrainingArguments(
+            output_dir=args.save_dir,
+            per_device_train_batch_size=args.batch_size,
+            per_device_eval_batch_size=args.batch_size,
+            num_train_epochs=args.epochs,
+            learning_rate=args.lr,
+            report_to=[],
+            fp16=args.fp16,
+            dataloader_num_workers=8,
+            log_interval=args.log_interval,
+        ),
+        train_dataset=prepared_ds["train"],
+        eval_dataset=prepared_ds["validation"],
+        data_collator=collate_fn,
         compute_metrics=compute_metrics,
+        tokenizer=processor,
+        optimizers=(None, None),
     )
+    metrics = trainer.train()
 
     model.save_ckpt(os.path.join(args.save_dir, "final"))
 
@@ -144,4 +167,4 @@ if __name__ == "__main__":
     args = arguments()
     main(args)
 
-# python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json
+# python scripts/train_vit.py --model vit --save_dir ckpts/test  --dataset cifar10 --num_shards 500 --lr 2e-5 --batch_size 64 --log_interval 100 --huggingface_token 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  --elastic_config scripts/elastic_space.json --cache_dir /work/LAS/jannesar-lab/sixing/.cache --log_interval 1
