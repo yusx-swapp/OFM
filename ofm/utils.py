@@ -217,8 +217,6 @@ class Logger:
             self.writer.add_scalar(f"{prefix}/{tag}", value, step)
 
     def print_metrics(self, metrics, ste=None, prefix="val"):
-        if ste is not None:
-            print(f"==================in step {ste}==================")
         for tag, value in metrics.items():
             print(f"{prefix}/{tag}: {value}")
 
