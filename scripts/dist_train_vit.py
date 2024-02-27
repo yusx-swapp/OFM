@@ -23,11 +23,13 @@ def compute_metrics(eval_pred):
     f1_metric = evaluate.load("f1")
 
     accuracy = accuracy_metric.compute(
-        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        # predictions=np.argmax(eval_pred["predictions"], axis=1),
+        predictions=torch.argmax(eval_pred["predictions"], axis=1),
         references=eval_pred["label_ids"],
     )
     f1 = f1_metric.compute(
-        predictions=np.argmax(eval_pred["predictions"], axis=1),
+        # predictions=np.argmax(eval_pred["predictions"], axis=1),
+        predictions=torch.argmax(eval_pred["predictions"], axis=1),
         references=eval_pred["label_ids"],
         average="weighted",
     )
