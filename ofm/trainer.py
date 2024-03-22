@@ -248,6 +248,7 @@ class Trainer:
                 self.logger.print_metrics(train_metrics, step, prefix="steps/supernet")
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
+                    self.update_best_metric(metrics)
                     self.logger.log_metrics(metrics, step, prefix="steps/supernet")
                     self.logger.print_metrics(metrics, prefix="steps/supernet")
 

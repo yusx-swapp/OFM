@@ -64,15 +64,8 @@ class DistributedTrainer(Trainer):
 
     def setup(self):
         dist.init_process_group(backend="nccl")
-
-        # self.local_rank = dist.get_rank()
         self.local_rank = int(os.environ["RANK"])
-
         self.world_size = dist.get_world_size()
-
-        # dist.init_process_group(
-        #     "nccl", rank=self.local_rank, world_size=self.world_size
-        # )
         print(f"Rank {self.local_rank} initialized, world size: {self.world_size}")
 
     @staticmethod
@@ -136,15 +129,6 @@ class DistributedTrainer(Trainer):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 outputs = self.activate_model(**batch)
                 preds = outputs.logits.detach()
-                # eval_preds = {"predictions": preds, "label_ids": batch["labels"]}
-
-                # if not metrics:
-                #     metrics = self._compute_metrics(eval_preds)
-
-                # else:
-                #     for k, v in self._compute_metrics(eval_preds).items():
-                #         metrics[k] = (metrics[k] + v) / 2
-
                 all_preds.append(preds.cpu())
                 all_labels.append(batch["labels"].detach().cpu())
         batch.clear()
