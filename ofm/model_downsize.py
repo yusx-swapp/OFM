@@ -334,6 +334,95 @@ def vit_module_handler(model, arc_config):
     return subnetwork, total_params
 
 
+def swin_module_handler(model, arc_config):
+    from transformers.models.swin.modeling_swin import (
+        SwinStage,
+        SwinPatchMerging,
+        SwinDropPath,
+        SwinIntermediate,
+        SwinLayer,
+        SwinAttention,
+        SwinOutput,
+        SwinSelfAttention,
+        SwinSelfOutput,
+        ACT2FN,
+    )
+
+    class SwinOutput(SwinOutput):
+        def __init__(self, config, input_dim, dim, dense_out=None):
+            super().__init__(config, dim)
+            self.dense = nn.Linear(input_dim, dim)
+            self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    class SwinIntermediate(SwinIntermediate):
+        def __init__(self, config, dim, out_dim):
+            super().__init__(config, dim)
+            self.dense = nn.Linear(dim, out_dim)
+            if isinstance(config.hidden_act, str):
+                self.intermediate_act_fn = ACT2FN[config.hidden_act]
+            else:
+                self.intermediate_act_fn = config.hidden_act
+
+    class SwinSelfOutput(SwinSelfOutput):
+        def __init__(self, config, dim, out_dim):
+            super().__init__(config, dim)
+            self.dense = nn.Linear(dim, out_dim)
+            self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+
+    class SwinAttention(SwinAttention):
+        def __init__(self, config, dim, out_dim, num_heads, window_size):
+            super().__init__(config, dim, num_heads, window_size)
+            self.self = SwinSelfAttention(config, dim, num_heads, window_size)
+            self.output = SwinSelfOutput(config, dim, out_dim)
+            self.pruned_heads = set()
+
+    class SwinLayer(SwinLayer):
+        def __init__(
+            self,
+            config,
+            dim,
+            atten_out,
+            interm_out,
+            input_resolution,
+            num_heads,
+            shift_size=0,
+        ):
+            super().__init__(config, dim, input_resolution, num_heads, shift_size)
+
+            self.attention = SwinAttention(
+                config, dim, atten_out, num_heads, window_size=self.window_size
+            )
+            self.drop_path = (
+                SwinDropPath(config.drop_path_rate)
+                if config.drop_path_rate > 0.0
+                else nn.Identity()
+            )
+            self.layernorm_after = nn.LayerNorm(dim, eps=config.layer_norm_eps)
+            self.intermediate = SwinIntermediate(config, atten_out, interm_out)
+            self.output = SwinOutput(config, interm_out, dim)
+
+    subnet = copy.deepcopy(model).cpu()
+    swin_backbone_layers = model.swin.encoder.layers[-2].blocks
+    subnet.config.ofm_architecture = arc_config
+    new_config = copy.deepcopy(subnet.config)
+
+    for i, (layer, key) in enumerate(zip(swin_backbone_layers, arc_config)):
+        arc = arc_config[key]
+        new_layer = SwinLayer(
+            config=new_config,
+            dim=new_config.embed_dim * 2**2,  # only on third (index 2) stage
+            atten_out=arc["atten_out"],
+            interm_out=arc["inter_hidden"],
+            input_resolution=layer.input_resolution,
+            num_heads=new_config.num_heads[2],
+            shift_size=0 if (i % 2 == 0) else new_config.window_size // 2,
+        )
+        subnet.swin.encoder.layers[-2].blocks[i] = new_layer
+    total_params = calculate_params(subnet)
+
+    return subnet, total_params
+
+
 def sam_module_handler(model, arc_config):
     from transformers.models.sam.modeling_sam import (
         SamVisionAttention,

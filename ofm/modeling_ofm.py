@@ -15,6 +15,7 @@ from .model_downsize import (
     t5_module_handler,
     roberta_module_handler,
     distilbert_module_handler,
+    swin_module_handler,
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
@@ -60,10 +61,16 @@ class OFM:
         Returns:
             _type_: _description_
         """
-        arc_config = arc_config_sampler(
-            **self.model.config.elastic_config,
-            n_layer=self.model.config.num_hidden_layers,
-        )
+        if "swin" == self.model.config.model_type.lower():
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                n_layer=self.model.config.depths[-2],
+            )
+        else:
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                n_layer=self.model.config.num_hidden_layers,
+            )
         if "sam" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
@@ -81,11 +88,18 @@ class OFM:
             - params (int): The number of parameters in million of the smallest model
             - arc_config (dict): The configuration of the smallest model
         """
-        arc_config = arc_config_sampler(
-            **self.model.config.elastic_config,
-            smallest=True,
-            n_layer=self.model.config.num_hidden_layers,
-        )
+        if "swin" == self.model.config.model_type.lower():
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                smallest=True,
+                n_layer=self.model.config.depths[-2],
+            )
+        else:
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                smallest=True,
+                n_layer=self.model.config.num_hidden_layers,
+            )
         subnetwork, params = self.resource_aware_model(arc_config)
         return subnetwork, params, arc_config
 
@@ -105,6 +119,8 @@ class OFM:
             return roberta_module_handler(self.model, arc_config)
         elif "distilbert" == self.model.config.model_type.lower():
             return distilbert_module_handler(self.model, arc_config)
+        elif "swin" == self.model.config.model_type.lower():
+            return swin_module_handler(self.model, arc_config)
         else:
             raise NotImplementedError
 
