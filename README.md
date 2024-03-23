@@ -81,7 +81,7 @@ print("subnetwork params",params)
 OFM with its mini-shard training strategy can train a super-FM in a fast speed. You can train a super-ViT on CIFAR-100 with the following command:
 
 ```bash
-python3 scripts/train_vit.py --model vit \
+python3 scripts/train_img_classification.py --model vit \
 --save_dir ckpts/cifar100  \
 --dataset cifar100 \
 --num_shards 30 \
@@ -104,7 +104,7 @@ Before you start, you have to be granted access to the ImageNet dataset. You can
 Set the arguments ` --huggingface_token` to your huggingface token, which should have be granted access to the ImageNet dataset.
 
 ```bash
-python3 scripts/train_vit.py --model vit \
+python3 scripts/train_img_classification.py --model vit \
 --save_dir 'your_dir'  \
 --dataset imagenet-1k \
 --num_shards 500 \
@@ -120,7 +120,7 @@ python3 scripts/train_vit.py --model vit \
 If you have multiple GPUs, you can use the following command to train the super-FM with distributed training:
 
 ```bash
-torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/dist_train_vit.py --model vit \
+torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/dist_train_img_classification.py --model vit \
 --save_dir 'your_dir'  \
 --dataset imagenet-1k \
 --num_shards 500 \

@@ -1,0 +1,10 @@
+{
+    "atten_out_space": [
+        512
+    ],
+    "inter_hidden_space": [
+        2048, 1024, 512],
+    "residual_hidden_space": [
+     "None"
+    ]
+  }

@@ -220,8 +220,7 @@ class Trainer:
     def train(self):
 
         for epoch in range(self.args.num_train_epochs):
-            print(f"==== Epoch {epoch} ====")
-
+            print("=="*20, f"Epoch {epoch}", "=="*20)
             # TODO: add tqdm
             for step, batch in enumerate(self.train_dataloader):
                 print("=*" * 20, f"Step {step}", "=*" * 20)

@@ -6,9 +6,8 @@ import functools
 import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
-from ofm.distribute_trainer import TrainingArguments, DistributedTrainer
-import torch.multiprocessing as mp
-from ofm import OFM
+from ofm import OFM, ofm_train
+from ofm.trainer import TrainingArguments, Trainer
 
 
 def compute_metrics(eval_pred):
@@ -23,13 +22,11 @@ def compute_metrics(eval_pred):
     f1_metric = evaluate.load("f1")
 
     accuracy = accuracy_metric.compute(
-        # predictions=np.argmax(eval_pred["predictions"], axis=1),
-        predictions=torch.argmax(eval_pred["predictions"], axis=1),
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
         references=eval_pred["label_ids"],
     )
     f1 = f1_metric.compute(
-        # predictions=np.argmax(eval_pred["predictions"], axis=1),
-        predictions=torch.argmax(eval_pred["predictions"], axis=1),
+        predictions=np.argmax(eval_pred["predictions"], axis=1),
         references=eval_pred["label_ids"],
         average="weighted",
     )
@@ -63,21 +60,22 @@ def transform(example_batch, processor):
     return inputs
 
 
-# def main(rank, world_size, args):
 def main(args):
     if args.model == "vit":
         model_name = "google/vit-base-patch16-224-in21k"
-        processor_name = "google/vit-base-patch16-224-in21k"
+        processor_name = "google/vit-base-patch16-224"
     elif args.model == "vit-large":
         model_name = "google/vit-large-patch16-224-in21k"
-        processor_name = "google/vit-large-patch16-224-in21k"
-
+        processor_name = "google/vit-large-patch16-224"
+    elif args.model == "swinv2":
+        model_name = "microsoft/swin-base-patch4-window7-224"
+        processor_name = "microsoft/swin-base-patch4-window7-224"  # pre-trained
     # load data and preprocess
 
     if args.huggingface_token:
         from huggingface_hub import login
 
-        login(args.huggingface_token, add_to_git_credential=True)
+        login(args.huggingface_token)
 
     dataset = load_dataset(
         args.dataset, cache_dir=args.cache_dir, trust_remote_code=True
@@ -107,8 +105,8 @@ def main(args):
     prepared_ds = dataset.with_transform(
         functools.partial(transform, processor=processor)
     )
-    # print(prepared_ds["train"][0])
 
+    # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
         ckpt_path = args.resume_ckpt
         elastic_config = (
@@ -132,13 +130,22 @@ def main(args):
 
     model = OFM(model.to("cpu"), elastic_config)
 
-    trainer = DistributedTrainer(
+    # model = ofm_train(
+    #     args,
+    #     model,
+    #     prepared_ds["train"],
+    #     prepared_ds["validation"],
+    #     processor=processor,
+    #     collate_fn=collate_fn,
+    #     compute_metrics=compute_metrics,
+    # )
+
+    trainer = Trainer(
         model,
         TrainingArguments(
             output_dir=args.save_dir,
             per_device_train_batch_size=args.batch_size,
             per_device_eval_batch_size=args.batch_size,
-            # gradient_accumulation_steps=args.gradient_accumulation_steps,
             num_train_epochs=args.epochs,
             learning_rate=args.lr,
             report_to=[],
@@ -146,10 +153,10 @@ def main(args):
             dataloader_num_workers=8,
             log_interval=args.log_interval,
         ),
-        data_collator=collate_fn,
-        compute_metrics=compute_metrics,
         train_dataset=prepared_ds["train"],
         eval_dataset=prepared_ds["validation"],
+        data_collator=collate_fn,
+        compute_metrics=compute_metrics,
         tokenizer=processor,
         optimizers=(None, None),
     )
@@ -160,9 +167,4 @@ def main(args):
 
 if __name__ == "__main__":
     args = arguments()
-
-    world_size = torch.cuda.device_count()
     main(args)
-    # main(0, world_size, args)
-    # mp.spawn(main, args=(world_size, args), nprocs=world_size, join=True)
-# python train_vit.py --model vit --save_dir ckpts/vit-base  --dataset cifar100 --num_shards 20 --elastic_config scripts/elastic_space.json
