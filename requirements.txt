@@ -8,3 +8,8 @@ evaluate
 datasets
 peft
 huggingface-hub
+causal-conv1d>=1.2.0
+mamba-ssm
+datasets
+peft
+trl
