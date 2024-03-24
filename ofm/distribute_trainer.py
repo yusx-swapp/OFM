@@ -204,11 +204,12 @@ class DistributedTrainer(Trainer):
     @wraps(Trainer.train)
     def train(self):
         # for epoch in tqdm(range(self.args.num_train_epochs)):
+        step = 0
         for epoch in range(self.args.num_train_epochs):
             if self.local_rank == 0:
                 print(f"=+" * 20, f"Epoch {epoch+1}", "=+" * 20)
 
-            for step, batch in enumerate(self.train_dataloader):
+            for i, batch in enumerate(self.train_dataloader):
                 if self.local_rank == 0:
                     print("=*" * 20, f"Step {step+1}", "=*" * 20)
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -293,6 +294,7 @@ class DistributedTrainer(Trainer):
                     self.supernet.save_ckpt(
                         os.path.join(self.args.output_dir, "last_model")
                     )
+                step += 1
 
         self.cleanup()
         return train_metrics
