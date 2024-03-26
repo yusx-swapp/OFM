@@ -220,7 +220,7 @@ class Trainer:
     def train(self):
 
         for epoch in range(self.args.num_train_epochs):
-            print("=="*20, f"Epoch {epoch}", "=="*20)
+            print("==" * 20, f"Epoch {epoch}", "==" * 20)
             # TODO: add tqdm
             for step, batch in enumerate(self.train_dataloader):
                 print("=*" * 20, f"Step {step}", "=*" * 20)
@@ -255,6 +255,115 @@ class Trainer:
                 self.activate_model.to(self.device)
                 soft_labels = self.activate_model(**batch).logits.detach().cpu()
 
+                # Train smallest subnet
+                (
+                    self.activate_model,
+                    self.activate_model.config.num_parameters,
+                    self.activate_model.config.arch,
+                ) = self.supernet.smallest_model()
+
+                # self.activate_model.to(self.device)
+                self.create_optimizer_and_scheduler()
+
+                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps/ssubnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/ssubnet")
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    self.logger.log_metrics(metrics, step, prefix="steps/ssubnet")
+                    self.logger.print_metrics(metrics, prefix="steps/ssubnet")
+
+                # Train random subnets
+                (
+                    self.activate_model,
+                    self.activate_model.config.num_parameters,
+                    self.activate_model.config.arch,
+                ) = self.supernet.random_resource_aware_model()
+
+                # self.activate_model.to(self.device)
+                self.create_optimizer_and_scheduler()
+
+                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/subnet")
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    self.logger.log_metrics(metrics, step, prefix="steps/subnet")
+                    self.logger.print_metrics(metrics, prefix="steps/subnet")
+
+                self.supernet.save_ckpt(
+                    os.path.join(self.args.output_dir, "last_model")
+                )
+
+        return train_metrics
+
+
+class CLIPTrainer(Trainer):
+
+    def compute_loss(self, outputs, labels, soft_labels=None):
+        image_embeds = outputs.image_embeds
+        text_embeds = outputs.text_embeds
+        logits_per_image = outputs.logits_per_image
+        logits_per_text = outputs.logits_per_text
+
+        # Normalize the embeddings
+        image_embeds = F.normalize(image_embeds, dim=1)
+        text_embeds = F.normalize(text_embeds, dim=1)
+
+        # Compute the cosine similarity between image and text embeddings
+        logits_per_image = torch.matmul(image_embeds, text_embeds.t())
+        logits_per_text = logits_per_image.t()
+
+        # Create labels for contrastive loss
+        labels = torch.arange(len(logits_per_image)).to(logits_per_image.device)
+
+        # Compute the contrastive loss
+        loss_image = F.cross_entropy(logits_per_image, labels)
+        loss_text = F.cross_entropy(logits_per_text, labels)
+        loss = (loss_image + loss_text) / 2
+
+        return loss
+
+    def train(self):
+
+        for epoch in range(self.args.num_train_epochs):
+            print("==" * 20, f"Epoch {epoch}", "==" * 20)
+            # TODO: add tqdm
+            for step, batch in enumerate(self.train_dataloader):
+                print("=*" * 20, f"Step {step}", "=*" * 20)
+
+                # for step, batch in enumerate(self.train_dataloader):
+                # move batch to device
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                (
+                    self.activate_model,
+                    self.activate_model.config.num_parameters,
+                    self.activate_model.config.arch,
+                ) = (
+                    copy.deepcopy(self.supernet.model),
+                    self.supernet.total_params,
+                    {},
+                )
+
+                self.create_optimizer_and_scheduler()
+
+                train_metrics = self.training_step(batch)
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps/supernet")
+                self.logger.print_metrics(train_metrics, step, prefix="steps/supernet")
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    self.update_best_metric(metrics)
+                    self.logger.log_metrics(metrics, step, prefix="steps/supernet")
+                    self.logger.print_metrics(metrics, prefix="steps/supernet")
+
+                self.activate_model.eval()
+                self.activate_model.to(self.device)
+                # soft_labels = self.activate_model(**batch).logits.detach().cpu()
+                soft_labels = None
                 # Train smallest subnet
                 (
                     self.activate_model,

@@ -68,7 +68,7 @@ def main(args):
         model_name = "google/vit-large-patch16-224-in21k"
         processor_name = "google/vit-large-patch16-224"
     elif args.model == "swinv2":
-        model_name = "microsoft/swin-base-patch4-window7-224"
+        model_name = "microsoft/swin-base-patch4-window7-224-in22k"
         processor_name = "microsoft/swin-base-patch4-window7-224"  # pre-trained
     # load data and preprocess
 
@@ -130,15 +130,6 @@ def main(args):
 
     model = OFM(model.to("cpu"), elastic_config)
 
-    # model = ofm_train(
-    #     args,
-    #     model,
-    #     prepared_ds["train"],
-    #     prepared_ds["validation"],
-    #     processor=processor,
-    #     collate_fn=collate_fn,
-    #     compute_metrics=compute_metrics,
-    # )
 
     trainer = Trainer(
         model,
