@@ -127,9 +127,9 @@ def arc_config_sampler(
             atten_out = np.random.choice(atten_out_space)
 
         arc_config[f"layer_{layer + 1}"] = {
-            "atten_out": atten_out,
-            "inter_hidden": inter_hidden,
-            "residual_hidden": residual_hidden,
+            "atten_out": int(atten_out),
+            "inter_hidden": int(inter_hidden),
+            "residual_hidden": int(residual_hidden),
         }
 
     return arc_config
@@ -193,7 +193,6 @@ def mamba_module_handler(model, arc):
                     )
                     for i in range(config.num_hidden_layers)
                 }
-            print("Monkey Patched MambaCache")
 
     import transformers.models.mamba.modeling_mamba
 
