@@ -113,7 +113,7 @@ def arc_config_sampler(
     arc_config = {}
     np.random.seed(int(time.time()))  # Set the seed to the current time
 
-    residual_hidden = np.random.choice(residual_hidden_space)
+    residual_hidden = np.random.choice(residual_hidden_space).item()
     if smallest:
         residual_hidden = min(residual_hidden_space)
 
@@ -123,13 +123,13 @@ def arc_config_sampler(
             atten_out = min(atten_out_space)
 
         else:
-            inter_hidden = np.random.choice(inter_hidden_space)
-            atten_out = np.random.choice(atten_out_space)
+            inter_hidden = np.random.choice(inter_hidden_space).item()
+            atten_out = np.random.choice(atten_out_space).item()
 
         arc_config[f"layer_{layer + 1}"] = {
-            "atten_out": int(atten_out),
-            "inter_hidden": int(inter_hidden),
-            "residual_hidden": int(residual_hidden),
+            "atten_out": atten_out,
+            "inter_hidden": inter_hidden,
+            "residual_hidden": residual_hidden,
         }
 
     return arc_config
@@ -505,7 +505,7 @@ def swin_module_handler(model, arc_config):
         )
         subnet.swin.encoder.layers[-2].blocks[i] = new_layer
     total_params = calculate_params(subnet)
-
+    subnet.config.num_parameters = total_params
     return subnet, total_params
 
 
