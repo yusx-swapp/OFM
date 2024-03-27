@@ -120,6 +120,7 @@ class Trainer:
             self.eval_dataset,
             batch_size=self.args.per_device_eval_batch_size,
             collate_fn=self.data_collator,
+            shuffle=False,
             num_workers=self.args.dataloader_num_workers,
         )
 
@@ -197,7 +198,11 @@ class Trainer:
         self.optimizer.zero_grad()
         outputs = self.activate_model(**batch)
 
-        loss = self.compute_loss(outputs, batch["labels"], soft_labels=soft_labels)
+        loss = self.compute_loss(
+            outputs,
+            labels=batch["labels"] if hasattr(batch, "labels") else None,
+            soft_labels=soft_labels,
+        )
         # loss.backward()
         loss.sum().backward()
         self.optimizer.step()
@@ -470,8 +475,11 @@ class CLIPTrainer(Trainer):
                 print("=*" * 20, f"Step {step+1}", "=*" * 20)
 
                 batch = {k: v.to(self.device) for k, v in batch.items()}
-
-                train_metrics = self.training_step(batch)
+                input_batch = {
+                    "pixel_values": batch["pixel_values"],
+                    "input_ids": batch["input_ids"],
+                }
+                train_metrics = self.training_step(input_batch)
                 for k, v in train_metrics.items():
                     avg_train_metrics[k] = avg_train_metrics.get(k, 0) + v
 
@@ -507,9 +515,10 @@ class CLIPTrainer(Trainer):
         true_labels = []
         pred_labels = []
 
-        progress_bar = tqdm(eval_dataloader, desc="Evaluation")
+        progress_bar = tqdm(self.eval_dataloader, desc="Evaluation")
 
         for batch in progress_bar:
+            batch = {k: v.to(self.device) for k, v in batch.items()}
             images = batch["pixel_values"]
             input_ids = batch["input_ids"]
 
@@ -525,9 +534,9 @@ class CLIPTrainer(Trainer):
             with torch.no_grad():
                 outputs = self.activate_model(pixel_values=images, input_ids=input_ids)
                 logits = outputs.logits_per_image
-                predicted_labels = torch.argmax(logits, dim=1).tolist()
+                predicted_labels = torch.argmax(logits, dim=1).to("cpu").tolist()
 
-            true_labels.extend(labels)
+            true_labels.extend(labels.to("cpu"))
             pred_labels.extend(predicted_labels)
 
             # Calculate intermediate metrics

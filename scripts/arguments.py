@@ -21,6 +21,7 @@ def arguments():
             "t5",
             "t5-large",
             "swinv2",
+            "clip",
         ],
         help="Model architecture to use (resnet or vit)",
     )
