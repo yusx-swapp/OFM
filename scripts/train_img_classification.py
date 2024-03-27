@@ -130,7 +130,6 @@ def main(args):
 
     model = OFM(model.to("cpu"), elastic_config)
 
-
     trainer = Trainer(
         model,
         TrainingArguments(

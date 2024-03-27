@@ -73,7 +73,6 @@ def main(args):
         processor_name = "google/vit-large-patch16-224-in21k"
     elif args.model == "swinv2":
         model_name = "microsoft/swin-base-patch4-window7-224-in22k"
-        # model_name = "Weili/swin-base-patch4-window7-224-in22k-finetuned-cifar10"
         processor_name = "microsoft/swin-base-patch4-window7-224"  # pre-trained
     # load data and preprocess
 
