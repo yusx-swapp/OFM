@@ -17,6 +17,7 @@ from .model_downsize import (
     distilbert_module_handler,
     swin_module_handler,
     mamba_module_handler,
+    clip_module_handler,
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
@@ -63,19 +64,31 @@ class OFM:
             _type_: _description_
         """
 
-        arc_config = arc_config_sampler(
-            **self.model.config.elastic_config,
-            n_layer=self.model.config.num_hidden_layers,
-        )
         if "sam" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
                 n_layer=self.model.vision_encoder.config.num_hidden_layers,
             )
-        if "swin" == self.model.config.model_type.lower():
+        elif "swin" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
                 n_layer=self.model.config.depths[-2],
+            )
+
+        elif "clip" == self.model.config.model_type.lower():
+            text_arc_config = arc_config_sampler(
+                **self.model.config.elastic_config["text"],
+                n_layer=12,
+            )
+            vision_arc_config = arc_config_sampler(
+                **self.model.config.elastic_config["vision"],
+                n_layer=12,
+            )
+            arc_config = (text_arc_config, vision_arc_config)
+        else:
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                n_layer=self.model.config.num_hidden_layers,
             )
 
         subnetwork, total_params = self.resource_aware_model(arc_config)
@@ -90,12 +103,32 @@ class OFM:
             - params (int): The number of parameters in million of the smallest model
             - arc_config (dict): The configuration of the smallest model
         """
-        if "swin" == self.model.config.model_type.lower():
+
+        if "sam" == self.model.config.model_type.lower():
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                smallest=True,
+                n_layer=self.model.vision_encoder.config.num_hidden_layers,
+            )
+        elif "swin" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
                 smallest=True,
                 n_layer=self.model.config.depths[-2],
             )
+
+        elif "clip" == self.model.config.model_type.lower():
+            text_arc_config = arc_config_sampler(
+                **self.model.config.elastic_config["text"],
+                n_layer=12,
+            )
+            vision_arc_config = arc_config_sampler(
+                **self.model.config.elastic_config["vision"],
+                smallest=True,
+                n_layer=12,
+            )
+            arc_config = (text_arc_config, vision_arc_config)
+
         else:
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
@@ -125,6 +158,8 @@ class OFM:
             return swin_module_handler(self.model, arc_config)
         elif "mamba" == self.model.config.model_type.lower():
             return mamba_module_handler(self.model, arc_config)
+        elif "clip" == self.model.config.model_type.lower():
+            return clip_module_handler(self.model, arc_config)
         else:
             raise NotImplementedError
 

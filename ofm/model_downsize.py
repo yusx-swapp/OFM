@@ -135,11 +135,12 @@ def arc_config_sampler(
     return arc_config
 
 
-def clip_module_handler(model, text_arc_config):
+def clip_module_handler(model, arc_config):
     from transformers.models.clip.modeling_clip import (
         CLIPEncoderLayer,
     )
 
+    text_arc_config, vision_arc_config = arc_config
     subnet = copy.deepcopy(model).cpu()
     text_encoder_layers = subnet.text_model.encoder.layers
     vision_encoder_layers = subnet.vision_model.encoder.layers
@@ -147,6 +148,7 @@ def clip_module_handler(model, text_arc_config):
     new_config = copy.deepcopy(subnet.config)
 
     subnet.config.text_architecture = text_arc_config
+    subnet.config.vision_architecture = vision_arc_config
 
     for i, (layer, key) in enumerate(zip(text_encoder_layers, text_arc_config)):
         arc = text_arc_config[key]
@@ -157,7 +159,18 @@ def clip_module_handler(model, text_arc_config):
 
         subnet.text_model.encoder.layers[i] = new_layer
 
+    for i, (layer, key) in enumerate(zip(vision_encoder_layers, vision_arc_config)):
+        arc = vision_arc_config[key]
+
+        new_config.intermediate_size = arc["inter_hidden"]
+
+        new_layer = CLIPEncoderLayer(config=new_config)
+
+        subnet.vision_model.encoder.layers[i] = new_layer
+
     copy_weights_to_subnet(subnet, model)
+
+    return subnet, calculate_params(subnet)
 
 
 def mamba_module_handler(model, arc):
