@@ -1,0 +1,29 @@
+{"text":{
+    "atten_out_space": [
+      "None"
+    ],
+    "inter_hidden_space": [
+        2048,
+      1536,
+        1024
+      
+    ],
+    "residual_hidden_space": [
+
+        "None"
+    ]
+  },
+  "vision":{
+    "atten_out_space": [
+        "None"
+    ],
+    "inter_hidden_space": [
+      3072,
+      2048,
+      1280
+    ],
+    "residual_hidden_space": [
+        "None"
+    ]
+  }
+}
