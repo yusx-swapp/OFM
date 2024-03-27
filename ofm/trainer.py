@@ -453,3 +453,101 @@ class CLIPTrainer(Trainer):
                 )
 
         return train_metrics
+
+    def train_subnet(self, subnet):
+
+        self.activate_model = subnet
+
+        if not self.optimizer or not self.scheduler:
+            self.create_optimizer_and_scheduler()
+
+        avg_train_metrics = {}
+        step = 0
+        for epoch in range(self.args.num_train_epochs):
+            print("==" * 20, f"Epoch {epoch}", "==" * 20)
+            # TODO: add tqdm
+            for i, batch in enumerate(self.train_dataloader):
+                print("=*" * 20, f"Step {step+1}", "=*" * 20)
+
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                train_metrics = self.training_step(batch)
+                for k, v in train_metrics.items():
+                    avg_train_metrics[k] = avg_train_metrics.get(k, 0) + v
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/subnet")
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    self.update_best_metric(metrics)
+                    self.logger.log_metrics(metrics, step, prefix="steps/subnet")
+                    self.logger.print_metrics(metrics, prefix="steps/subnet")
+
+                step += 1
+
+                self.supernet.save_ckpt(
+                    os.path.join(self.args.output_dir, "last_model")
+                )
+
+        for k in avg_train_metrics:
+            avg_train_metrics[k] /= step
+
+        return avg_train_metrics
+
+    def evaluate(self, eval_dataloader):
+        from sklearn.metrics import (
+            accuracy_score,
+            f1_score,
+            precision_score,
+            recall_score,
+        )
+
+        self.activate_model.eval()
+
+        true_labels = []
+        pred_labels = []
+
+        progress_bar = tqdm(eval_dataloader, desc="Evaluation")
+
+        for batch in progress_bar:
+            images = batch["pixel_values"]
+            input_ids = batch["input_ids"]
+
+            labels = batch["labels"]
+            # # Preprocess the texts
+            # inputs = processor(
+            #     text=[label_to_text[label] for label in labels],
+            #     images=images,
+            #     return_tensors="pt",
+            #     padding=True,
+            # )
+
+            with torch.no_grad():
+                outputs = self.activate_model(pixel_values=images, input_ids=input_ids)
+                logits = outputs.logits_per_image
+                predicted_labels = torch.argmax(logits, dim=1).tolist()
+
+            true_labels.extend(labels)
+            pred_labels.extend(predicted_labels)
+
+            # Calculate intermediate metrics
+            accuracy = accuracy_score(true_labels, pred_labels)
+            f1 = f1_score(true_labels, pred_labels, average="weighted")
+            precision = precision_score(true_labels, pred_labels, average="weighted")
+            recall = recall_score(true_labels, pred_labels, average="weighted")
+
+            progress_bar.set_postfix(
+                {
+                    "Accuracy": f"{accuracy:.4f}",
+                    "F1 Score": f"{f1:.4f}",
+                    "Precision": f"{precision:.4f}",
+                    "Recall": f"{recall:.4f}",
+                }
+            )
+        eval_metrics = {
+            "accuracy": accuracy,
+            "f1": f1,
+            "precision": precision,
+            "recall": recall,
+        }
+        return eval_metrics
