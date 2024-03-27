@@ -6,7 +6,7 @@ import functools
 import evaluate
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from arguments import arguments
-from ofm import OFM, ofm_train
+from ofm import OFM
 from ofm.trainer import TrainingArguments, Trainer
 
 
