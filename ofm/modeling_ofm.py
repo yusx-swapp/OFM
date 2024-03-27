@@ -78,11 +78,11 @@ class OFM:
         elif "clip" == self.model.config.model_type.lower():
             text_arc_config = arc_config_sampler(
                 **self.model.config.elastic_config["text"],
-                n_layer=12,
+                n_layer=self.model.config.text_config.num_hidden_layers,
             )
             vision_arc_config = arc_config_sampler(
                 **self.model.config.elastic_config["vision"],
-                n_layer=12,
+                n_layer=self.model.config.vision_config.num_hidden_layers,
             )
             arc_config = (text_arc_config, vision_arc_config)
         else:
@@ -120,12 +120,12 @@ class OFM:
         elif "clip" == self.model.config.model_type.lower():
             text_arc_config = arc_config_sampler(
                 **self.model.config.elastic_config["text"],
-                n_layer=12,
+                n_layer=self.model.config.text_config.num_hidden_layers,
             )
             vision_arc_config = arc_config_sampler(
                 **self.model.config.elastic_config["vision"],
                 smallest=True,
-                n_layer=12,
+                n_layer=self.model.config.vision_config.num_hidden_layers,
             )
             arc_config = (text_arc_config, vision_arc_config)
 

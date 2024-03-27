@@ -145,7 +145,8 @@ def clip_module_handler(model, arc_config):
     text_encoder_layers = subnet.text_model.encoder.layers
     vision_encoder_layers = subnet.vision_model.encoder.layers
 
-    new_config = copy.deepcopy(subnet.config)
+    new_text_config = copy.deepcopy(subnet.config.text_config)
+    new_vision_config = copy.deepcopy(subnet.config.vision_config)
 
     subnet.config.text_architecture = text_arc_config
     subnet.config.vision_architecture = vision_arc_config
@@ -153,18 +154,18 @@ def clip_module_handler(model, arc_config):
     for i, (layer, key) in enumerate(zip(text_encoder_layers, text_arc_config)):
         arc = text_arc_config[key]
 
-        new_config.intermediate_size = arc["inter_hidden"]
+        new_text_config.intermediate_size = arc["inter_hidden"]
 
-        new_layer = CLIPEncoderLayer(config=new_config)
+        new_layer = CLIPEncoderLayer(config=new_text_config)
 
         subnet.text_model.encoder.layers[i] = new_layer
 
     for i, (layer, key) in enumerate(zip(vision_encoder_layers, vision_arc_config)):
         arc = vision_arc_config[key]
 
-        new_config.intermediate_size = arc["inter_hidden"]
+        new_vision_config.intermediate_size = arc["inter_hidden"]
 
-        new_layer = CLIPEncoderLayer(config=new_config)
+        new_layer = CLIPEncoderLayer(config=new_vision_config)
 
         subnet.vision_model.encoder.layers[i] = new_layer
 

@@ -13,3 +13,4 @@ mamba-ssm
 datasets
 peft
 trl
+pillow # for clip image processing
