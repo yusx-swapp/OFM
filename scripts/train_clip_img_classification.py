@@ -201,5 +201,3 @@ def main(args):
 if __name__ == "__main__":
     args = arguments()
     main(args)
-
-# python scripts/train_clip_img_classification.py --model clip --save_dir ckpts/clip-cifar10 --dataset cifar10 --num_shards 500 --lr 2e-5 --batch_size 8 --log_interval 1 --huggingface_token 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  --elastic_config scripts/clip_elastic_space.json
