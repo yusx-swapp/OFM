@@ -299,6 +299,39 @@ class Trainer:
 
         return train_metrics
 
+    def train_subnet(self, subnet):
+
+        self.activate_model = subnet
+
+        if not self.optimizer or not self.scheduler:
+            self.create_optimizer_and_scheduler()
+
+        step = 0
+        for epoch in range(self.args.num_train_epochs):
+            print("==" * 20, f"Epoch {epoch}", "==" * 20)
+            # TODO: add tqdm
+            for i, batch in enumerate(self.train_dataloader):
+                print("=*" * 20, f"Step {step+1}", "=*" * 20)
+
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                # get soft labels
+                self.supernet.model.eval()
+                self.supernet.model.to(self.device)
+                soft_labels = self.supernet.model(**batch).logits.detach().cpu()
+                self.supernet.model.to("cpu")
+
+                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+
+                self.logger.log_metrics(train_metrics, step, prefix="steps/ssubnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/ssubnet")
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    self.logger.log_metrics(metrics, step, prefix="steps/ssubnet")
+                    self.logger.print_metrics(metrics, prefix="steps/ssubnet")
+
+                step += 1
+
 
 class CLIPTrainer(Trainer):
 

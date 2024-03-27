@@ -14,6 +14,16 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import Trainer, TrainingArguments
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+print(
+    "[WARNING] This script is now deprecated, please use ofm.trainer APIs instead. Once we passed the test functions, we will remove this script."
+)
+logging.warning(
+    "This script is now deprecated, please use ofm.trainer APIs instead. Once we passed the test functions, we will remove this script."
+)
+
 
 def get_optimizer_and_scheduler(model, lr):
     # Define the optimizer
