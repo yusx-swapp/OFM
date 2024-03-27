@@ -1,7 +1,7 @@
 scikit-learn
 pyyaml
 ipykernel
-transformers
+transformers @ git+https://github.com/huggingface/transformers@main
 transformers[torch]
 tensorboard
 evaluate

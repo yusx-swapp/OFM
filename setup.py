@@ -11,10 +11,6 @@ setup(
     version=VERSION,
     packages=find_packages(),
     install_requires=required,
-    dependency_links=[
-       'git+https://github.com/huggingface/transformers@main'
-        # Any links to dependencies you want to include
-    ],
     entry_points={
         "console_scripts": [
             # If you have any scripts you want to be executable from the command line

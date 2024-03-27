@@ -20,6 +20,7 @@ __all__ = [
     "sam_module_handler",
     "T5_module_handler",
     "distilbert_module_handler",
+    "mamba_module_handler",
 ]
 
 
@@ -132,6 +133,92 @@ def arc_config_sampler(
         }
 
     return arc_config
+
+
+def mamba_module_handler(model, arc):
+    from transformers.models.mamba.modeling_mamba import (
+        MambaCache as OriginalMambaCache,
+    )
+
+    class MambaCache(OriginalMambaCache):
+        def __init__(self, config, batch_size, dtype=torch.float16, device=None):
+            self.seqlen_offset = 0
+            self.dtype = dtype
+            intermediate_size = config.intermediate_size
+            ssm_state_size = config.state_size
+            conv_kernel_size = config.conv_kernel
+            if hasattr(config, "architecture"):
+                self.conv_states = {
+                    i: torch.zeros(
+                        batch_size,
+                        config.architecture[layer_arc]["inter_hidden"],
+                        conv_kernel_size,
+                        device=device,
+                        dtype=dtype,
+                    )
+                    for i, layer_arc in zip(
+                        range(config.num_hidden_layers), config.architecture
+                    )
+                }
+                self.ssm_states = {
+                    i: torch.zeros(
+                        batch_size,
+                        config.architecture[layer_arc]["inter_hidden"],
+                        ssm_state_size,
+                        device=device,
+                        dtype=dtype,
+                    )
+                    for i, layer_arc in zip(
+                        range(config.num_hidden_layers), config.architecture
+                    )
+                }
+            else:
+                self.conv_states = {
+                    i: torch.zeros(
+                        batch_size,
+                        intermediate_size,
+                        conv_kernel_size,
+                        device=device,
+                        dtype=dtype,
+                    )
+                    for i in range(config.num_hidden_layers)
+                }
+                self.ssm_states = {
+                    i: torch.zeros(
+                        batch_size,
+                        intermediate_size,
+                        ssm_state_size,
+                        device=device,
+                        dtype=dtype,
+                    )
+                    for i in range(config.num_hidden_layers)
+                }
+            print("Monkey Patched MambaCache")
+
+    import transformers.models.mamba.modeling_mamba
+
+    transformers.models.mamba.modeling_mamba.MambaCache = MambaCache
+
+    from transformers.models.mamba.modeling_mamba import MambaBlock
+
+    config = model.config
+    config.architecture = arc
+    new_model = copy.deepcopy(model)
+    new_model.config = config
+
+    for idx, (layer, layer_arc) in enumerate(zip(model.backbone.layers, arc)):
+
+        layer_config = copy.deepcopy(new_model.config)
+        layer_config.intermediate_size = arc[layer_arc]["inter_hidden"]
+        new_layer = MambaBlock(config=layer_config, layer_idx=idx)
+
+        copy_weights_to_subnet(new_layer, layer)
+
+        new_model.backbone.layers[idx] = new_layer
+
+    total_params = calculate_params(new_model)
+
+    return new_model, total_params
 
 
 def bert_module_handler(model, arc_config):

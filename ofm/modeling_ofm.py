@@ -16,6 +16,7 @@ from .model_downsize import (
     roberta_module_handler,
     distilbert_module_handler,
     swin_module_handler,
+    mamba_module_handler,
 )
 from .param_prioritization import *
 from .utils import calculate_params, save_dict_to_file, load_dict_from_file
@@ -61,21 +62,22 @@ class OFM:
         Returns:
             _type_: _description_
         """
-        if "swin" == self.model.config.model_type.lower():
-            arc_config = arc_config_sampler(
-                **self.model.config.elastic_config,
-                n_layer=self.model.config.depths[-2],
-            )
-        else:
-            arc_config = arc_config_sampler(
-                **self.model.config.elastic_config,
-                n_layer=self.model.config.num_hidden_layers,
-            )
+
+        arc_config = arc_config_sampler(
+            **self.model.config.elastic_config,
+            n_layer=self.model.config.num_hidden_layers,
+        )
         if "sam" == self.model.config.model_type.lower():
             arc_config = arc_config_sampler(
                 **self.model.config.elastic_config,
                 n_layer=self.model.vision_encoder.config.num_hidden_layers,
             )
+        if "swin" == self.model.config.model_type.lower():
+            arc_config = arc_config_sampler(
+                **self.model.config.elastic_config,
+                n_layer=self.model.config.depths[-2],
+            )
+
         subnetwork, total_params = self.resource_aware_model(arc_config)
 
         return subnetwork, total_params, arc_config
@@ -121,6 +123,8 @@ class OFM:
             return distilbert_module_handler(self.model, arc_config)
         elif "swin" == self.model.config.model_type.lower():
             return swin_module_handler(self.model, arc_config)
+        elif "mamba" == self.model.config.model_type.lower():
+            return mamba_module_handler(self.model, arc_config)
         else:
             raise NotImplementedError
 
