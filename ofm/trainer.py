@@ -306,6 +306,7 @@ class Trainer:
         if not self.optimizer or not self.scheduler:
             self.create_optimizer_and_scheduler()
 
+        avg_train_metrics = {}
         step = 0
         for epoch in range(self.args.num_train_epochs):
             print("==" * 20, f"Epoch {epoch}", "==" * 20)
@@ -322,15 +323,27 @@ class Trainer:
                 self.supernet.model.to("cpu")
 
                 train_metrics = self.training_step(batch, soft_labels=soft_labels)
+                for k, v in train_metrics.items():
+                    avg_train_metrics[k] = avg_train_metrics.get(k, 0) + v
 
-                self.logger.log_metrics(train_metrics, step, prefix="steps/ssubnet")
-                self.logger.print_metrics(train_metrics, prefix="steps/ssubnet")
+                self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
+                self.logger.print_metrics(train_metrics, prefix="steps/subnet")
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    self.logger.log_metrics(metrics, step, prefix="steps/ssubnet")
-                    self.logger.print_metrics(metrics, prefix="steps/ssubnet")
+                    self.update_best_metric(metrics)
+                    self.logger.log_metrics(metrics, step, prefix="steps/subnet")
+                    self.logger.print_metrics(metrics, prefix="steps/subnet")
 
                 step += 1
+
+                self.supernet.save_ckpt(
+                    os.path.join(self.args.output_dir, "last_model")
+                )
+
+        for k in avg_train_metrics:
+            avg_train_metrics[k] /= step
+
+        return avg_train_metrics
 
 
 class CLIPTrainer(Trainer):
