@@ -54,18 +54,18 @@ def collate_fn(batch):
     }
 
 
-label_to_text = {
-    0: "airplane",
-    1: "automobile",
-    2: "bird",
-    3: "cat",
-    4: "deer",
-    5: "dog",
-    6: "frog",
-    7: "horse",
-    8: "ship",
-    9: "truck",
-}
+# label_to_text = {
+#     0: "airplane",
+#     1: "automobile",
+#     2: "bird",
+#     3: "cat",
+#     4: "deer",
+#     5: "dog",
+#     6: "frog",
+#     7: "horse",
+#     8: "ship",
+#     9: "truck",
+# }
 
 
 def collate_fn(batch):
@@ -143,6 +143,10 @@ def main(args):
         )
         dataset["train"] = train_val["train"]
         dataset["validation"] = train_val["test"]
+
+    labels = dataset["train"].features["label"].names
+    
+    label_to_text = {i: label for i, label in enumerate(labels)}
 
     prepared_train = dataset["train"].with_transform(
         functools.partial(transform_train, processor=processor)
