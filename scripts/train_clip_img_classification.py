@@ -54,20 +54,6 @@ def collate_fn(batch):
     }
 
 
-# label_to_text = {
-#     0: "airplane",
-#     1: "automobile",
-#     2: "bird",
-#     3: "cat",
-#     4: "deer",
-#     5: "dog",
-#     6: "frog",
-#     7: "horse",
-#     8: "ship",
-#     9: "truck",
-# }
-
-
 def collate_fn(batch):
     """This function is used to collate the data samples into batches.
     It is used to supply the DataLoader with the collate_fn argument.
@@ -84,30 +70,37 @@ def collate_fn(batch):
     }
 
 
-def transform_train(example_batch, processor):
+def transform_train(example_batch, processor, label_to_text):
     # Take a list of PIL images and turn them to pixel values
 
-    # Take a list of PIL images and turn them to pixel values
     inputs = processor(
         text=[label_to_text[label] for label in example_batch["label"]],
         images=[x.convert("RGB") for x in example_batch["img"]],
         return_tensors="pt",
-        # padding=True,
+        padding=True,
     )
     inputs["labels"] = example_batch["label"]
 
     return inputs
 
 
-def transform_eval(example_batch, processor):
+def transform_eval(example_batch, processor, label_to_text):
     # Take a list of PIL images and turn them to pixel values
+
+    images = [x.convert("RGB") for x in example_batch["img"]]
+
+    # Generate text prompts for all possible labels
+    text_prompts = [label_to_text[label] for label in range(len(label_to_text))]
+
     inputs = processor(
-        text=[label_to_text[label] for label in range(10)],
-        images=example_batch["img"],
+        text=text_prompts,
+        images=images,
         return_tensors="pt",
         padding=True,
     )
+
     inputs["labels"] = example_batch["label"]
+
     return inputs
 
 
@@ -145,14 +138,18 @@ def main(args):
         dataset["validation"] = train_val["test"]
 
     labels = dataset["train"].features["label"].names
-    
+
     label_to_text = {i: label for i, label in enumerate(labels)}
 
     prepared_train = dataset["train"].with_transform(
-        functools.partial(transform_train, processor=processor)
+        functools.partial(
+            transform_train, processor=processor, label_to_text=label_to_text
+        )
     )
     prepared_test = dataset["test"].with_transform(
-        functools.partial(transform_eval, processor=processor)
+        functools.partial(
+            transform_eval, processor=processor, label_to_text=label_to_text
+        )
     )
     # load/initialize global model and convert to raffm model
     if args.resume_ckpt:
