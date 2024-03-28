@@ -523,13 +523,6 @@ class CLIPTrainer(Trainer):
             input_ids = batch["input_ids"]
 
             labels = batch["labels"]
-            # # Preprocess the texts
-            # inputs = processor(
-            #     text=[label_to_text[label] for label in labels],
-            #     images=images,
-            #     return_tensors="pt",
-            #     padding=True,
-            # )
 
             with torch.no_grad():
                 outputs = self.activate_model(pixel_values=images, input_ids=input_ids)

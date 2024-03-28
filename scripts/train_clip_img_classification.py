@@ -13,8 +13,6 @@ import functools
 from datasets import load_dataset
 from transformers import CLIPProcessor, CLIPModel
 import torch
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from tqdm import tqdm
 
 
 def compute_metrics(eval_pred):
@@ -110,9 +108,6 @@ def transform_eval(example_batch, processor):
         padding=True,
     )
     inputs["labels"] = example_batch["label"]
-    # print(inputs.keys())
-    # Include the labels
-
     return inputs
 
 
