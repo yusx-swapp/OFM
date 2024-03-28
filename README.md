@@ -38,9 +38,14 @@ We validate the results we reported in our paper, we provide several trained sup
 
 We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
 
-- [Super-ViT-Base for ImageNet](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-imagenet)
-- [Super-ViT-Base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100)
-- [Super-ViT-Base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar10)
+- [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
+- [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)
+- [ ] [Super-CLIP-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-clip-base-patch32-cifar10)
+- [ ] [Super-CLIP-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-clip-base-patch32-cifar100)
+- [ ] [Super-Mamba-1.4B](https://huggingface.co/yusx-swapp/ofm-mamba-1.4b-lambda-hf)
+- [ ] [Super-ViT-Base for ImageNet](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-imagenet)
+- [ ] [Super-ViT-Base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100)
+- [ ] [Super-ViT-Base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar10)
 
 **_You dont need download the ckpt files, you can use Huggingface Model Card to load the ckpt files directly.
 We will show you how to do that in the following section._**
@@ -141,7 +146,8 @@ torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/dist_train_img
 - [x] DistilBERT
 - [x] Flan-T5
 - [x] SAM
-- [x] LLaMA-7B
+- [x] Mamba SSM
+- [x] LLaMA-7B (deprecated after commit ea6815b7162494667edb9dcd32f554346f07401b)
 
 ## Contact
 
