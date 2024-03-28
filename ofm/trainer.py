@@ -122,6 +122,7 @@ class Trainer:
             collate_fn=self.data_collator,
             shuffle=False,
             num_workers=self.args.dataloader_num_workers,
+            drop_last=True,
         )
 
     def get_test_dataloader(self):
@@ -352,7 +353,7 @@ class Trainer:
 
 
 class CLIPTrainer(Trainer):
-
+    
     def compute_loss(self, outputs, labels, soft_labels=None):
         image_embeds = outputs.image_embeds
         text_embeds = outputs.text_embeds
