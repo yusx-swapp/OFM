@@ -10,7 +10,7 @@ _One Foundation Model Fits All: Single-stage Foundation Model Training with Zero
 - [x] [12/04/2023] APIs for Segment Anything (SAM)
 - [x] [02/01/2024] ViT-base supernet checkpoints pushed to huggingface model hub
 - [x] [02/01/2024] Hands on tutorial for quickly specialize FM with zero-shot
-
+- [x] [03/28/2024] Update examples for Mamba, SAM, Swin, and CLIP. Released checkpoints.
 ## Installation
 
 First, create a conda environment, then install pytorch.
