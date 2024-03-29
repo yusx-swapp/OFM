@@ -97,6 +97,7 @@ def arc_config_sampler(
     residual_hidden_space: List[int],
     n_layer=12,
     smallest=False,
+    largest=False,
 ) -> dict:
     """Generate subnet architecture configuration based on the provided configuration.
 
@@ -114,14 +115,20 @@ def arc_config_sampler(
     np.random.seed(int(time.time()))  # Set the seed to the current time
 
     residual_hidden = np.random.choice(residual_hidden_space).item()
+    assert smallest == False or largest == False  # Only one can be true
+
     if smallest:
         residual_hidden = min(residual_hidden_space)
+    elif largest:
+        residual_hidden = max(residual_hidden_space)
 
     for layer in range(n_layer):
         if smallest:
             inter_hidden = min(inter_hidden_space)
             atten_out = min(atten_out_space)
-
+        elif largest:
+            inter_hidden = max(inter_hidden_space)
+            atten_out = max(atten_out_space)
         else:
             inter_hidden = np.random.choice(inter_hidden_space).item()
             atten_out = np.random.choice(atten_out_space).item()
