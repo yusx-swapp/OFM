@@ -1,4 +1,4 @@
-# Optimize Swin Transformer via OFM 
+# Optimize Mamba SSM via OFM 
 
 ## Experiment Goal
 
