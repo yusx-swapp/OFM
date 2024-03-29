@@ -71,7 +71,7 @@ Similarlly, in Figure 2, we show the trained scalable ViT's performance on CIFAR
 In summry, Foundation Models trained by RaFFM are scalable, which can enables heterogeneous model deployment post-federated learning without further training. -->
 
 ## **Reference**
-:raised_hands: Thanks for the great work from the authors of Swin Transformer and Swin Transformer v2, we appreciate your efforts and contributions to the community.:raised_hands:
+:raised_hands: Thanks for the great work from the authors of Mamba and lm-eval, we appreciate your efforts and contributions to the community.:raised_hands:
 ```
 
 @misc{gu2023mamba,
