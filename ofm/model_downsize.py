@@ -246,10 +246,9 @@ def mamba_module_handler(model, arc):
 
     from transformers.models.mamba.modeling_mamba import MambaBlock
 
-    config = model.config
-    config.architecture = arc
+    
     new_model = copy.deepcopy(model)
-    new_model.config = config
+    new_model.config.architecture = arc
 
     for idx, (layer, layer_arc) in enumerate(zip(model.backbone.layers, arc)):
 
