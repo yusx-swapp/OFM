@@ -84,12 +84,7 @@ class DistributedTrainer(Trainer):
                 self.train_dataset, shuffle=True
             ),
         )
-        # train_dataloader = DataLoader(
-        #     train_ds,
-        #     batch_size=config.batch_size,
-        #     shuffle=False,
-        #     sampler=DistributedSampler(train_ds, shuffle=True),
-        # )
+
 
     @wraps(Trainer.get_eval_dataloader)
     def get_eval_dataloader(self):
@@ -119,6 +114,10 @@ class DistributedTrainer(Trainer):
 
     @wraps(Trainer.evaluate)
     def evaluate(self, eval_dataloader):
+        def get_all_reduce_mean(tensor):
+            torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+            tensor = tensor / torch.distributed.get_world_size()
+            return tensor
         self.activate_model.eval()
         all_preds = []
         all_labels = []
@@ -172,18 +171,12 @@ class DistributedTrainer(Trainer):
 
         loss.sum().backward()
 
-        # if self.local_rank == 0:
-        #     print(f"satrt all reduce {self.local_rank}")
-        # for param in self.activate_model.parameters():
-        #     dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
-        #     param.grad.data /= self.world_size
-
         self.optimizer.step()
 
         with torch.no_grad():
             for k, v in self.activate_model.state_dict().items():
                 local_grad[k] = local_grad[k] - v.cpu()
-
+        
         self.supernet.apply_grad(local_grad)
 
         dist.all_reduce(loss.data, op=dist.ReduceOp.SUM)
