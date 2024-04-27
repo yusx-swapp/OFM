@@ -7,6 +7,30 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 
+def get_all_reduce_mean(tensor):
+    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+    tensor = tensor / torch.distributed.get_world_size()
+    return tensor
+
+
+def print_rank_0(msg, rank=None):
+    if rank is not None and rank <= 0:
+        print(msg)
+    elif is_rank_0():
+        print(msg)
+
+
+def is_rank_0():
+    """Check whether it is rank 0."""
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            return True
+        else:
+            return False
+    else:
+        return True
+
+
 def save_dict_to_file(dictionary, file_path):
     """
     Saves a dictionary object to a file using JSON format.
@@ -216,9 +240,21 @@ class Logger:
             # self.writer.add_scalar(tag, value, step)
             self.writer.add_scalar(f"{prefix}/{tag}", value, step)
 
+    def log_metrics_rank_0(self, metrics, step, prefix="val", rank=None):
+        if rank is not None and rank <= 0:
+            self.log_metrics(metrics, step, prefix)
+        elif is_rank_0():
+            self.log_metrics(metrics, step, prefix)
+
     def print_metrics(self, metrics, ste=None, prefix="val"):
         for tag, value in metrics.items():
             print(f"{prefix}/{tag}: {value}")
+
+    def print_metrics_rank_0(self, metrics, step=None, prefix="val", rank=None):
+        if rank is not None and rank <= 0:
+            self.print_metrics(metrics, step, prefix)
+        elif is_rank_0():
+            self.print_metrics(metrics, step, prefix)
 
     def save_metrics(self, prefix, metrics):
         save_dict_to_file(metrics, os.path.join(self.log_dir, f"{prefix}.json"))
