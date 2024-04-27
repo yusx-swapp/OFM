@@ -6,9 +6,10 @@ import copy
 import os
 import time
 import numpy as np
-from .utils import EarlyStopping, step_lr, Logger
+from .utils import EarlyStopping, step_lr, Logger, print_rank_0, get_all_reduce_mean
 from .modeling_ofm import OFM
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data.distributed import DistributedSampler
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,9 +46,9 @@ class DistributedTrainer(Trainer):
         test_dataset=None,
         tokenizer=None,
         optimizers=None,
+        local_rank=-1,
     ):
 
-        self.setup()
         super().__init__(
             supernet,
             args,
@@ -60,13 +61,22 @@ class DistributedTrainer(Trainer):
             optimizers,
         )
 
-        self.device = torch.device("cuda:{}".format(self.local_rank))
+        self.local_rank = local_rank
+        if self.local_rank == -1:
+            self.device = torch.device(
+                device="cuda" if torch.cuda.is_available() else "cpu"
+            )
+        else:
+            self.device = torch.device("cuda:{}".format(self.local_rank))
+            self.setup()
 
     def setup(self):
         dist.init_process_group(backend="nccl")
-        self.local_rank = int(os.environ["RANK"])
         self.world_size = dist.get_world_size()
-        print(f"Rank {self.local_rank} initialized, world size: {self.world_size}")
+        self.global_rank = dist.get_rank()
+        print(
+            f"Global rank: {self.global_rank} initialized (local rank: {self.local_rank}), world size: {self.world_size}"
+        )
 
     @staticmethod
     def cleanup():
@@ -74,50 +84,51 @@ class DistributedTrainer(Trainer):
 
     @wraps(Trainer.get_train_dataloader)
     def get_train_dataloader(self):
+        print("[Remove in release]Creating train dataloader")
+        if self.local_rank == -1:
+            train_sampler = RandomSampler(self.train_dataset)
+        else:
+            train_sampler = DistributedSampler(self.train_dataset)
         return DataLoader(
             self.train_dataset,
             batch_size=self.args.per_device_train_batch_size,
             collate_fn=self.data_collator,
-            # num_workers=self.args.dataloader_num_workers,
-            # pin_memory=True,
-            sampler=torch.utils.data.distributed.DistributedSampler(
-                self.train_dataset, shuffle=True
-            ),
+            num_workers=self.args.dataloader_num_workers,
+            sampler=train_sampler,
         )
-
 
     @wraps(Trainer.get_eval_dataloader)
     def get_eval_dataloader(self):
+        print("[Remove in release] Creating eval dataloader")
+        if self.local_rank == -1:
+            eval_sampler = SequentialSampler(self.eval_dataset)
+        else:
+            eval_sampler = DistributedSampler(self.eval_dataset)
         return DataLoader(
             self.eval_dataset,
             batch_size=self.args.per_device_eval_batch_size,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,
-            pin_memory=True,
-            sampler=torch.utils.data.distributed.DistributedSampler(
-                self.eval_dataset, num_replicas=self.world_size, rank=self.local_rank
-            ),
+            sampler=eval_sampler,
         )
 
     @wraps(Trainer.get_test_dataloader)
     def get_test_dataloader(self):
+        print("[Remove in release] Creating test dataloader")
+        if self.local_rank == -1:
+            test_sampler = SequentialSampler(self.test_dataset)
+        else:
+            test_sampler = DistributedSampler(self.test_dataset)
         return DataLoader(
             self.test_dataset,
             batch_size=self.args.per_device_eval_batch_size,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,
-            pin_memory=True,
-            sampler=torch.utils.data.distributed.DistributedSampler(
-                self.test_dataset, num_replicas=self.world_size, rank=self.local_rank
-            ),
+            sampler=test_sampler,
         )
 
     @wraps(Trainer.evaluate)
     def evaluate(self, eval_dataloader):
-        def get_all_reduce_mean(tensor):
-            torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-            tensor = tensor / torch.distributed.get_world_size()
-            return tensor
         self.activate_model.eval()
         all_preds = []
         all_labels = []
@@ -134,22 +145,14 @@ class DistributedTrainer(Trainer):
         all_preds = torch.cat(all_preds)
         all_labels = torch.cat(all_labels)
 
-        # gathered_preds = [
-        #     torch.ones_like(all_preds).to(self.device) for _ in range(self.world_size)
-        # ]
-        # gathered_labels = [
-        #     torch.ones_like(all_labels).to(self.device) for _ in range(self.world_size)
-        # ]
-        # dist.all_gather(gathered_preds, all_preds)
-        # dist.all_gather(gathered_labels, all_labels)
-
         eval_preds = {"predictions": all_preds, "label_ids": all_labels}
         metrics = self._compute_metrics(eval_preds)
-        # for k, v in metrics.items():
-        #     if not isinstance(v, torch.Tensor):
-        #         metrics[k] = torch.tensor(v, device=self.device)
-        # for k in metrics.keys():
-        #     dist.all_reduce(metrics[k], op=dist.ReduceOp.AVG)
+
+        for k, v in metrics.items():
+            try:
+                metrics[k] = get_all_reduce_mean(v)
+            except:
+                pass
 
         metrics["params"] = self.activate_model.config.num_parameters
         return metrics
@@ -176,11 +179,13 @@ class DistributedTrainer(Trainer):
         with torch.no_grad():
             for k, v in self.activate_model.state_dict().items():
                 local_grad[k] = local_grad[k] - v.cpu()
-        
+
         self.supernet.apply_grad(local_grad)
 
-        dist.all_reduce(loss.data, op=dist.ReduceOp.SUM)
-
+        try:
+            loss.data = get_all_reduce_mean(loss.data)
+        except:
+            pass
         train_metrics = {
             "train_loss": loss.item(),
             "params": self.activate_model.config.num_parameters,
@@ -199,12 +204,11 @@ class DistributedTrainer(Trainer):
         # for epoch in tqdm(range(self.args.num_train_epochs)):
         step = 0
         for epoch in range(self.args.num_train_epochs):
-            if self.local_rank == 0:
-                print(f"=+" * 20, f"Epoch {epoch+1}", "=+" * 20)
-
+            print_rank_0(print(f"=+" * 20, f"Epoch {epoch+1}", "=+" * 20))
             for i, batch in enumerate(self.train_dataloader):
-                if self.local_rank == 0:
-                    print("=*" * 20, f"Step {step+1}", "=*" * 20)
+
+                print_rank_0("=*" * 20, f"Step {step+1}", "=*" * 20)
+
                 batch = {k: v.to(self.device) for k, v in batch.items()}
 
                 (
@@ -220,18 +224,20 @@ class DistributedTrainer(Trainer):
                 self.create_optimizer_and_scheduler()
 
                 train_metrics = self.training_step(batch)
-                if self.local_rank == 0:
-                    self.logger.log_metrics(
-                        train_metrics, step, prefix="steps/supernet"
-                    )
-                    self.logger.print_metrics(
-                        train_metrics, step, prefix="steps/supernet"
-                    )
+                self.logger.log_metrics_rank_0(
+                    train_metrics, step, prefix="steps/supernet", rank=self.global_rank
+                )
+                self.logger.print_metrics_rank_0(
+                    train_metrics, step, prefix="steps/supernet", rank=self.global_rank
+                )
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    if self.local_rank == 0:
-                        self.logger.log_metrics(metrics, step, prefix="steps/supernet")
-                        self.logger.print_metrics(metrics, prefix="steps/supernet")
+                    self.logger.log_metrics_rank_0(
+                        metrics, step, prefix="steps/supernet", rank=self.global_rank
+                    )
+                    self.logger.print_metrics_rank_0(
+                        metrics, step, prefix="steps/supernet", rank=self.global_rank
+                    )
 
                 self.accumulate_grad()
 
@@ -251,15 +257,20 @@ class DistributedTrainer(Trainer):
                 train_metrics = self.training_step(batch, soft_labels=soft_labels)
 
                 self.accumulate_grad()
-                if self.local_rank == 0:
-                    self.logger.log_metrics(train_metrics, step, prefix="steps/ssubnet")
-                    self.logger.print_metrics(train_metrics, prefix="steps/ssubnet")
+                self.logger.log_metrics_rank_0(
+                    train_metrics, step, prefix="steps/ssubnet", rank=self.global_rank
+                )
+                self.logger.print_metrics_rank_0(
+                    train_metrics, step, prefix="steps/ssubnet", rank=self.global_rank
+                )
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    if self.local_rank == 0:
-                        self.logger.log_metrics(metrics, step, prefix="steps/ssubnet")
-                        self.logger.print_metrics(metrics, prefix="steps/ssubnet")
-
+                    self.logger.log_metrics_rank_0(
+                        metrics, step, prefix="steps/ssubnet", rank=self.global_rank
+                    )
+                    self.logger.print_metrics_rank_0(
+                        metrics, step, prefix="steps/ssubnet", rank=self.global_rank
+                    )
                 # Train random subnets
                 (
                     self.activate_model,
@@ -273,17 +284,23 @@ class DistributedTrainer(Trainer):
 
                 self.accumulate_grad()
 
-                if self.local_rank == 0:
-                    self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
-                    self.logger.print_metrics(train_metrics, prefix="steps/subnet")
+                self.logger.log_metrics_rank_0(
+                    train_metrics, step, prefix="steps/subnet", rank=self.global_rank
+                )
+                self.logger.print_metrics_rank_0(
+                    train_metrics, step, prefix="steps/subnet", rank=self.global_rank
+                )
 
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
-                    if self.local_rank == 0:
-                        self.logger.log_metrics(metrics, step, prefix="steps/subnet")
-                        self.logger.print_metrics(metrics, prefix="steps/subnet")
+                    self.logger.log_metrics_rank_0(
+                        metrics, step, prefix="steps/subnet", rank=self.global_rank
+                    )
+                    self.logger.print_metrics_rank_0(
+                        metrics, step, prefix="steps/subnet", rank=self.global_rank
+                    )
 
-                if self.local_rank == 0:
+                if self.global_rank == 0:
                     self.supernet.save_ckpt(
                         os.path.join(self.args.output_dir, "last_model")
                     )
