@@ -1,20 +1,19 @@
-# Optimize Swin Transformer via OFM 
+# Optimize Swin Transformer via OSF 
 
 ## Experiment Goal
+In this experiment, we will:
 
-In this experiment we will:
+- [x] 1. Train Swin Transformer models (Swin and Swinv2) using OSF
 
-- [x] 1. Train Swin Transformer models (Swin and Swinv2) using OFM
-
-- [x] 2. Extract downsized Swin models (> 30\% model size reduction), and zero-shot evaluation on image classication task
+- [x] 2. Extract subnets from Swin models (> 30\% model size reduction), and zero-shot evaluation on image classification task
 
 
-## Hands on Tutorial
-We provides Jupyter Notebook Tutorial for you to validate our results step-by-step: **[Swin Example](swin_img_classification.ipynb)**
+## Hands-on Tutorial
+We provide Jupyter Notebook Tutorial for you to validate our results step-by-step: **[Swin Example](swin_img_classification.ipynb)**
 
-## Aviailable Super-FMs checkpoints
+## Available Supernet checkpoints
 
-We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+We pushed our trained supernets to the Huggingface model hub, you can find the checkpoints in the following links:
 
 - [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
 - [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)
@@ -29,8 +28,7 @@ We pushed our trained super-FMs to the Huggingface model hub, you can find the c
 ## Run the Experiments
 
 ### Installation
-
-Refer the detailed [installation guide](../../README.md).
+Refer to the detailed [installation](../../README.md) guide.
 
 ```bash
 conda create -n ofm python=3.10
@@ -60,7 +58,7 @@ python scripts/train_img_classification.py \
 --elastic_config scripts/swin_elastic_space.json 
 ```
 
-Training on multiple GPUs and wish to lunch distributed training, you can use the following command:
+Training on multiple GPUs and wish to launch distributed training, you can use the following command:
 ```bash
 torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/train_img_classification.py 
 --model swinv2 \

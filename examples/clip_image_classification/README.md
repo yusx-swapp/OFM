@@ -1,20 +1,19 @@
-# Optimize CLIP via OFM 
+# Optimize CLIP via OSF 
 
 ## Experiment Goal
+In this experiment, we will:
 
-In this experiment we will:
+- [x] 1. Concert pre-trained CLIP model to supernet use OSM with contrastive loss
 
-- [x] 1. Train CLIP model using OFM with contrastive loss
-
-- [x] 2. Extract downsized CLIP models (> 30\% model size reduction), and zero-shot evaluation on image classication task
+- [x] 2. Extract CLIP subnets (> 30\% model size reduction), and evaluate on image classification task
 
 
-## Hands on Tutorial
-We provides Jupyter Notebook Tutorial for you to validate our results step-by-step, in our tutorial we will show you how to apply the downsized models on image classification task: **[CLIP Tutorial](CLIP_img_classification.ipynb)**
+## Hands-on Tutorial
+We provide Jupyter Notebook Tutorial for you to validate our results step-by-step, in our tutorial we will show you how to extract subnets and evaluate on image classification task: **[CLIP Tutorial](CLIP_img_classification.ipynb)**
 
-## Aviailable Super-FMs checkpoints
+## Aviailable Supernet checkpoints
 
-We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+We pushed our trained supernets to the Huggingface model hub, you can find the checkpoints in the following links:
 
 - [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
 - [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)
@@ -30,8 +29,7 @@ We pushed our trained super-FMs to the Huggingface model hub, you can find the c
 ## Run the Experiments
 
 ### Installation
-
-Refer the detailed [installation guide](../../README.md).
+Refer to the detailed [installation](../../README.md) guide.
 
 ```bash
 conda create -n ofm python=3.10

@@ -1,12 +1,12 @@
-# Zero-shot foundation model specialization with OFM
+# Zero-shot foundation model specialization with OSF
 
 ## Experiment Goal
 
 In this experiment we show:
 
-**OFM Super-FMs trained is highly scalable, and can be used to a large number of generate high-performance zero-shot downsized models (> $10^{12}$) without further training**
+**OSF-trained supernet is highly scalable, and can be compress to a large number of high-performance zero-shot subnets (> $10^{12}$) without further training**
 
-Most importantly, such downsized FMs are **high-performance**, which can be directly deployed to edge devices without further training.
+Most importantly, such subnets are **high-performance**, which can be directly deployed to edge devices without further training.
 
 ## Reproduce the Experiments
 
@@ -21,9 +21,9 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvi
 pip install -r requirements.txt
 ```
 
-### The provided Super-FMs checkpoints
+### The provided Supernets checkpoints
 
-We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+We pushed our trained supernets to the Huggingface model hub, you can find the checkpoints in the following links:
 
 - [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
 - [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)

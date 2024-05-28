@@ -1,15 +1,14 @@
-# Optimize Mamba SSM via OFM 
+# Convert Mamba SSM to supernet via OSF
 
 ## Experiment Goal
+In this experiment, we will:
 
-In this experiment we will:
+- [x] 1. Train selective state space model Mamba using OSF
 
-- [x] 1. Train selective state space model Mamba using OFM
-
-- [x] 2. Extract downsized Mamba models (> 800M model parameter reduction), and evaluation on Lambda dataset.
+- [x] 2. Extract subnets from supernet (> 800M model parameter reduction), and evaluate on Lambda dataset.
 
 ## Dependencies
-Before start, you need to install the **[Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness)**. We appreciate their efforts and contributions to the community.:raised_hands:    
+Before starting, you need to install the **[Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness)**. We appreciate their efforts and contributions to the community.:raised_hands:    
 To install the **lm-eval** package from the github repository, run:
 
 ```bash
@@ -17,13 +16,16 @@ git clone https://github.com/EleutherAI/lm-evaluation-harness
 cd lm-evaluation-harness
 pip install -e .
 ```
-More detailed instructions, please see their repo **[Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness)**.
-## Hands on Tutorial
-We provides Jupyter Notebook Tutorial for you to validate our results step-by-step: **[Mamba Example](mamba_lm_harness.ipynb)**
 
-## Aviailable Super-FMs checkpoints
+For more detailed instructions, please see their repo **[Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness)**.
 
-We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+## Hands-on Tutorial
+We provide Jupyter Notebook Tutorials for you to validate our results step-by-step: **[Mamba Example](mamba_lm_harness.ipynb)**
+
+
+## Available Supernet checkpoints
+
+We pushed our trained supernets to the Huggingface model hub, you can find the checkpoints in the following links:
 
 - [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
 - [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)
@@ -38,8 +40,7 @@ We pushed our trained super-FMs to the Huggingface model hub, you can find the c
 ## Run the Experiments
 
 ### Installation
-
-Refer the detailed [installation guide](../../README.md).
+Refer to the detailed [installation](../../README.md) guide.
 
 ```bash
 conda create -n ofm python=3.10
