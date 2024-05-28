@@ -1,19 +1,19 @@
-# One Foundation Model Fits All (OFM): Single-stage Foundation Model Training with Zero-shot Deployment
+# Optimized Supernet Formation: Transforming Pretrained Models for Efficient On-device Inference
 
 This is the official implementation for the paper:
 
-_One Foundation Model Fits All: Single-stage Foundation Model Training with Zero-shot Deployment_
+_Optimized Supernet Formation: Transforming Pretrained Models for Efficient On-device Inference_
 
 ## Updates
 
 - [x] [11/07/2023] High-level API for edge
 - [x] [12/04/2023] APIs for Segment Anything (SAM)
 - [x] [02/01/2024] ViT-base supernet checkpoints pushed to huggingface model hub
-- [x] [02/01/2024] Hands on tutorial for quickly specialize FM with zero-shot
+- [x] [02/01/2024] Hands-on tutorial for quickly converting a given pre-trained model to supernet
 - [x] [03/28/2024] Update examples for Mamba, SAM, Swin, and CLIP. Released checkpoints.
 ## Installation
 
-First, create a conda environment, then install pytorch.
+First, create a conda environment, then install PyTorch.
 
 ```bash
 conda create -n ofm python=3.10
@@ -21,22 +21,22 @@ conda activate ofm
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 ```
 
-Next, install OFM package
+Next, install the OFM package
 
 ```bash
 cd OFM/
 pip install .
 ```
 
-## Super-FMs checkpoints
+## Supernets checkpoints
 
-OFM modeling a given foundation model (FM) as a supernet, with single-stage FM training, the FM can be quickly specialized to a wide range of resource constaints (> $10^{12}$) with zero-shot.
+OSF modeling a given pre-trained model as a supernet, with an efficient parallel finetuning process, OSM can transform the target pre-trained model to a supernet, and can be quickly specialized to a wide range of resource constraints (> $10^{12}$) with zero-shot.
 
-We validate the results we reported in our paper, we provide several trained supernet checkpoints. These checkpoints are been pushed to the anonymous Huggingface model hub Repos, you can find in following links.
+To validate the results we reported in our paper, we provide several trained supernet checkpoints. These checkpoints are been pushed to the anonymous Huggingface model hub Repos, which you can find in the following links.
 
 ### Checkpoints Links
 
-We pushed our trained super-FMs to the Huggingface model hub, you can find the checkpoints in the following links:
+We pushed our trained supernet to the Huggingface model hub, you can find the checkpoints in the following links:
 
 - [ ] [Super-Swinv2-base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-swin-base-patch4-window7-cifar10)
 - [ ] [Super-Swinv2-base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-swinv2-base-patch4-window7-cifar100/tree/main)
@@ -47,16 +47,16 @@ We pushed our trained super-FMs to the Huggingface model hub, you can find the c
 - [ ] [Super-ViT-Base for CIFAR-100](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar100)
 - [ ] [Super-ViT-Base for CIFAR-10](https://huggingface.co/yusx-swapp/ofm-vit-base-patch16-224-cifar10)
 
-**_You dont need download the ckpt files, you can use Huggingface Model Card to load the ckpt files directly.
+**_You don't need to download the ckpt files, you can use Huggingface Model Card to load the ckpts files directly.
 We will show you how to do that in the following section._**
 
 ### Checkpoints Usage
 
-**We provide detailed instructions and hands on tutorial for you to validate our zero-shot downsized models:**
+**We provide detailed instructions and hands-on tutorial for you to validate our zero-shot downsized models:**
 
-- [Example on quickly specialize ViT with zero-shot downsized models](./examples/post_training_deployment/vit_zero_shot_specialization_turorial.ipynb)
+- [Example on quickly evaluate ViT supernet with high-performance subnets](./examples/post_training_deployment/vit_zero_shot_specialization_turorial.ipynb)
 
-Besides, we also provide a high-level API for you to quickly generate zero-shot models for your own supernet with **2 lines of codes**, as shown in the following example:
+Besides, we also provide a high-level API for you to quickly generate sunets for your supernet with **2 lines of codes**, as shown in the following example:
 
 ```python
 from transformers import AutoModelForImageClassification
@@ -79,11 +79,11 @@ ds_model, params, config = supernet.random_resource_aware_model()
 print("subnetwork params",params)
 ```
 
-## Train your own super-FMs (Single Node)
+## Train your own supernet (Single Node)
 
-### Scripts for train Super-ViT
+### Scripts for converting ViT to a supernet
 
-OFM with its mini-shard training strategy can train a super-FM in a fast speed. You can train a super-ViT on CIFAR-100 with the following command:
+OFM with its mini-shard training strategy can convert a pre-trained model to a supernet in a fast and efficient way. For instance, you can train a super-ViT on CIFAR-100 with the following command:
 
 ```bash
 python3 scripts/train_img_classification.py --model vit \
@@ -106,7 +106,7 @@ To check the results, you can:
 
 Before you start, you have to be granted access to the ImageNet dataset. You can request and download the dataset from [here](https://huggingface.co/datasets/imagenet-1k).
 
-Set the arguments ` --huggingface_token` to your huggingface token, which should have be granted access to the ImageNet dataset.
+Set the arguments ` --huggingface_token` to your huggingface token, which should have been granted access to the ImageNet dataset.
 
 ```bash
 python3 scripts/train_img_classification.py --model vit \
@@ -136,7 +136,7 @@ torchrun --nproc_per_node='your numer of gpus' --nnodes=1 scripts/dist_train_img
 --elastic_config scripts/elastic_space.json
 ```
 
-**[Note]**: More APIs and scripts will post, please check the [**Updates**](#updates).
+**[Note]**: More APIs and scripts will be posted, please check the [**Updates**](#updates).
 
 ## Supported Foundation Models (02/01/2024)
 
