@@ -66,7 +66,8 @@ class DistributedTrainer(Trainer):
         dist.init_process_group(backend="nccl")
         self.local_rank = int(os.environ["RANK"])
         self.world_size = dist.get_world_size()
-        print(f"Rank {self.local_rank} initialized, world size: {self.world_size}")
+        print(f"Rank {self.local_rank} initialized, world size: {
+              self.world_size}")
 
     @staticmethod
     def cleanup():
@@ -158,7 +159,8 @@ class DistributedTrainer(Trainer):
     @wraps(Trainer.training_step)
     def training_step(self, batch, soft_labels=None):
 
-        local_grad = {k: v.cpu() for k, v in self.activate_model.state_dict().items()}
+        local_grad = {k: v.cpu()
+                      for k, v in self.activate_model.state_dict().items()}
 
         self.activate_model.to(self.device)
         self.activate_model.train()
@@ -168,7 +170,8 @@ class DistributedTrainer(Trainer):
 
         outputs = self.activate_model(**batch)
 
-        loss = self.compute_loss(outputs, batch["labels"], soft_labels=soft_labels)
+        loss = self.compute_loss(
+            outputs, batch["labels"], soft_labels=soft_labels)
 
         loss.sum().backward()
 
@@ -202,9 +205,10 @@ class DistributedTrainer(Trainer):
         self.supernet.model.to("cpu")
 
     @wraps(Trainer.train)
-    def train(self):
+    def train(self, teacher_model=None):
         # for epoch in tqdm(range(self.args.num_train_epochs)):
         step = 0
+        soft_label_dict = {}
         for epoch in range(self.args.num_train_epochs):
             if self.local_rank == 0:
                 print(f"=+" * 20, f"Epoch {epoch+1}", "=+" * 20)
@@ -214,26 +218,35 @@ class DistributedTrainer(Trainer):
                     print("=*" * 20, f"Step {step+1}", "=*" * 20)
                 batch = {k: v.to(self.device) for k, v in batch.items()}
 
-                (
-                    self.activate_model,
-                    self.activate_model.config.num_parameters,
-                    self.activate_model.config.arch,
-                ) = (
-                    copy.deepcopy(self.supernet.model),
-                    self.supernet.total_params,
-                    {},
-                )
+                if teacher_model is not None:
+                    if soft_label_dict.get(i) is None:
+                        teacher_model.to(self.device)
+                        teacher_model.eval()
+                        soft_labels = teacher_model(
+                            **batch).logits.detach().cpu()
+                        soft_label_dict[i] = soft_labels
+                        teacher_model.to("cpu")
+                    else:
+                        soft_labels = soft_label_dict[i]
+
+                else:
+                    self.supernet.model.to(self.device)
+                    self.supernet.model.eval()
+                    soft_labels = self.supernet.model(
+                        **batch).logits.detach().cpu()
+
+                (self.activate_model, \
+                    self.activate_model.config.num_parameters, \
+                    self.activate_model.config.arch,) = (copy.deepcopy(self.supernet.model),self.supernet.total_params,{},)
 
                 self.create_optimizer_and_scheduler()
 
-                train_metrics = self.training_step(batch)
+                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+                
                 if self.local_rank == 0:
-                    self.logger.log_metrics(
-                        train_metrics, step, prefix="steps/supernet"
-                    )
-                    self.logger.print_metrics(
-                        train_metrics, step, prefix="steps/supernet"
-                    )
+                    self.logger.log_metrics(train_metrics, step, prefix="steps/supernet")
+                    self.logger.print_metrics(train_metrics, step, prefix="steps/supernet")
+                
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
                     if self.local_rank == 0:
@@ -242,13 +255,8 @@ class DistributedTrainer(Trainer):
 
                 self.accumulate_grad()
 
-                self.supernet.model.to(self.device)
-                self.supernet.model.eval()
-                soft_labels = self.supernet.model(**batch).logits.detach().cpu()
-
                 # Train smallest subnet
-                (
-                    self.activate_model,
+                (self.activate_model,
                     self.activate_model.config.num_parameters,
                     self.activate_model.config.arch,
                 ) = self.supernet.smallest_model()
@@ -264,31 +272,37 @@ class DistributedTrainer(Trainer):
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
                     if self.local_rank == 0:
-                        self.logger.log_metrics(metrics, step, prefix="steps/ssubnet")
-                        self.logger.print_metrics(metrics, prefix="steps/ssubnet")
+                        self.logger.log_metrics(
+                            metrics, step, prefix="steps/ssubnet")
+                        self.logger.print_metrics(
+                            metrics, prefix="steps/ssubnet")
 
                 # Train random subnets
-                (
-                    self.activate_model,
+                (self.activate_model,
                     self.activate_model.config.num_parameters,
                     self.activate_model.config.arch,
                 ) = self.supernet.random_resource_aware_model()
 
                 self.create_optimizer_and_scheduler()
 
-                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+                train_metrics = self.training_step(
+                    batch, soft_labels=soft_labels)
 
                 self.accumulate_grad()
 
                 if self.local_rank == 0:
-                    self.logger.log_metrics(train_metrics, step, prefix="steps/subnet")
-                    self.logger.print_metrics(train_metrics, prefix="steps/subnet")
+                    self.logger.log_metrics(
+                        train_metrics, step, prefix="steps/subnet")
+                    self.logger.print_metrics(
+                        train_metrics, prefix="steps/subnet")
 
                 if (step + 1) % self.args.log_interval == 0:
                     metrics = self.evaluate(self.eval_dataloader)
                     if self.local_rank == 0:
-                        self.logger.log_metrics(metrics, step, prefix="steps/subnet")
-                        self.logger.print_metrics(metrics, prefix="steps/subnet")
+                        self.logger.log_metrics(
+                            metrics, step, prefix="steps/subnet")
+                        self.logger.print_metrics(
+                            metrics, prefix="steps/subnet")
 
                 if self.local_rank == 0:
                     self.supernet.save_ckpt(

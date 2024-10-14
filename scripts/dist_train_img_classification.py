@@ -132,6 +132,16 @@ def main(args):
         cache_dir=args.cache_dir,
     )
 
+    # load vit-large as teacher model
+    teacher_model = AutoModelForImageClassification.from_pretrained(
+        "google/vit-large-patch32-384",
+        num_labels=len(labels),
+        id2label={str(i): c for i, c in enumerate(labels)},
+        label2id={c: str(i) for i, c in enumerate(labels)},
+        ignore_mismatched_sizes=True,
+        cache_dir=args.cache_dir,
+    )
+
     model = OFM(model.to("cpu"), elastic_config)
 
     trainer = DistributedTrainer(
@@ -155,7 +165,7 @@ def main(args):
         tokenizer=processor,
         optimizers=(None, None),
     )
-    metrics = trainer.train()
+    metrics = trainer.train(teacher_model=teacher_model)
 
     model.save_ckpt(os.path.join(args.save_dir, "final"))
 
