@@ -312,3 +312,62 @@ class DistributedTrainer(Trainer):
 
         self.cleanup()
         return train_metrics
+
+    def train_subnet(self, subnet,teacher_model=None):
+        # for epoch in tqdm(range(self.args.num_train_epochs)):
+        self.activate_model = subnet
+        self.create_optimizer_and_scheduler()
+        step = 0
+        soft_label_dict = {}
+        for epoch in range(self.args.num_train_epochs):
+            if self.local_rank == 0:
+                print(f"=+" * 20, f"Epoch {epoch+1}", "=+" * 20)
+
+            for i, batch in enumerate(self.train_dataloader):
+                if self.local_rank == 0:
+                    print("=*" * 20, f"Step {step+1}", "=*" * 20)
+                
+                
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                if teacher_model is not None:
+                    if soft_label_dict.get(i) is None:
+                        teacher_model.to(self.device)
+                        teacher_model.eval()
+                        soft_labels = teacher_model(
+                            **batch).logits.detach().cpu()
+                        soft_label_dict[i] = soft_labels
+                        teacher_model.to("cpu")
+                    else:
+                        soft_labels = soft_label_dict[i]
+
+                else:
+                    self.supernet.model.to(self.device)
+                    self.supernet.model.eval()
+                    soft_labels = self.supernet.model(
+                        **batch).logits.detach().cpu()
+
+
+
+                train_metrics = self.training_step(batch, soft_labels=soft_labels)
+                
+                if self.local_rank == 0:
+                    self.logger.log_metrics(train_metrics, step, prefix="steps/supernet")
+                    self.logger.print_metrics(train_metrics, step, prefix="steps/supernet")
+                
+                if (step + 1) % self.args.log_interval == 0:
+                    metrics = self.evaluate(self.eval_dataloader)
+                    if self.local_rank == 0:
+                        self.logger.log_metrics(metrics, step, prefix="steps/supernet")
+                        self.logger.print_metrics(metrics, prefix="steps/supernet")
+
+                self.accumulate_grad()
+
+                if self.local_rank == 0:
+                    self.supernet.save_ckpt(
+                        os.path.join(self.args.output_dir, "last_model")
+                    )
+                step += 1
+
+        self.cleanup()
+        return train_metrics
