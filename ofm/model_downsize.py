@@ -112,7 +112,7 @@ def arc_config_sampler(
         dic: Subnet architecture configure.
     """
     arc_config = {}
-    np.random.seed(int(time.time()))  # Set the seed to the current time
+    # np.random.seed(int(time.time()))  # Set the seed to the current time
 
     residual_hidden = np.random.choice(residual_hidden_space).item()
     assert smallest == False or largest == False  # Only one can be true
